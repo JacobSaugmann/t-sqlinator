@@ -1,0 +1,151 @@
+{
+  "name": "t-sqlinator",
+  "displayName": "T-SQLinator",
+  "description": "Format SQL documents",
+  "version": "0.6.2",
+  "publisher": "t-sqlinator",
+  "author": {
+    "name": "T-SQLinator Team"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/t-sqlinator/t-sqlinator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/t-sqlinator/t-sqlinator/issues"
+  },
+  "homepage": "https://github.com/t-sqlinator/t-sqlinator#readme",
+  "icon": "icon-128-optimized.png",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Formatters"
+  ],
+  "keywords": [
+    "sql",
+    "t-sql",
+    "formatter",
+    "redgate",
+    "sql-prompt",
+    "format",
+    "sqlinator"
+  ],
+  "activationEvents": [
+    "onLanguage:sql",
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "T-SQLinator Configuration",
+      "properties": {
+        "t-sqlinator.keywordCase": {
+          "type": "string",
+          "enum": ["upper", "lower", "preserve"],
+          "default": "upper",
+          "description": "Case formatting for SQL keywords (SELECT, FROM, WHERE, etc.)"
+        },
+        "t-sqlinator.functionCase": {
+          "type": "string",
+          "enum": ["upper", "lower", "preserve"],
+          "default": "upper",
+          "description": "Case formatting for SQL functions (COUNT, SUM, MAX, etc.)"
+        },
+        "t-sqlinator.dataTypeCase": {
+          "type": "string",
+          "enum": ["upper", "lower", "preserve"],
+          "default": "upper",
+          "description": "Case formatting for SQL data types (VARCHAR, INT, DATE, etc.)"
+        },
+        "t-sqlinator.indentSize": {
+          "type": "number",
+          "default": 4,
+          "minimum": 1,
+          "maximum": 8,
+          "description": "Number of spaces to use for indentation"
+        },
+        "t-sqlinator.commaPosition": {
+          "type": "string",
+          "enum": ["before", "after"],
+          "default": "before",
+          "description": "Position of commas in SELECT statements"
+        },
+        "t-sqlinator.alignCommas": {
+          "type": "boolean",
+          "default": true,
+          "description": "Align commas in SELECT statements"
+        },
+        "t-sqlinator.alignAliases": {
+          "type": "boolean",
+          "default": true,
+          "description": "Align column aliases in SELECT statements"
+        },
+        "t-sqlinator.newlineAfterSelect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Add newline after SELECT keyword"
+        },
+        "t-sqlinator.linesBetweenQueries": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0,
+          "maximum": 5,
+          "description": "Number of blank lines between separate SQL queries"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "t-sqlinator.test",
+        "title": "Test T-SQLinator",
+        "category": "T-SQLinator"
+      },
+      {
+        "command": "t-sqlinator.formatDocument",
+        "title": "Format SQL Document",
+        "category": "T-SQLinator"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "t-sqlinator.formatDocument",
+        "key": "ctrl+shift+f",
+        "when": "editorTextFocus && resourceLangId == sql"
+      },
+      {
+        "command": "t-sqlinator.formatDocument",
+        "key": "alt+shift+f",
+        "when": "editorTextFocus && resourceLangId == sql"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "resourceLangId == sql",
+          "command": "t-sqlinator.formatDocument",
+          "group": "1_modification"
+        }
+      ]
+    },
+    "languages": [
+      {
+        "id": "sql",
+        "aliases": ["SQL", "sql"],
+        "extensions": [".sql", ".SQL"]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4"
+  }
+}
