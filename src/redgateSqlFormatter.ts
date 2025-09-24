@@ -85,7 +85,30 @@ export class RedgateSqlFormatter {
                 }
             }
 
-            return formattedBlocks.join('\n\n');
+            // Join blocks intelligently - don't add extra spacing around comments
+            const result: string[] = [];
+            for (let i = 0; i < formattedBlocks.length; i++) {
+                const block = blocks[i];
+                const content = formattedBlocks[i];
+                
+                if (i > 0) {
+                    // Check if previous or current block is a comment
+                    const previousBlock = blocks[i - 1];
+                    const isComment = block.type === 'LINE_COMMENT' || block.type === 'COMMENT';
+                    const wasPreviousComment = previousBlock.type === 'LINE_COMMENT' || previousBlock.type === 'COMMENT';
+                    
+                    if (isComment || wasPreviousComment) {
+                        // Only single line break for comments
+                        result.push('\n');
+                    } else {
+                        // Double line break for regular statements
+                        result.push('\n\n');
+                    }
+                }
+                result.push(content);
+            }
+            
+            return result.join('');
         } catch (error) {
             // If formatting fails, return the original SQL to prevent data loss
             console.warn('SQL formatting failed, returning original:', error);
