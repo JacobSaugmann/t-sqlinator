@@ -1,9 +1,10 @@
 /**
+ * T-SQLinator SQL Formatter
  * Enterprise SQL Formatter - Safe Multi-Statement Handler
  * Designed to handle complex scripts without destroying code
  */
 
-interface RedgateSqlPromptConfig {
+interface TSqlinatorConfig {
     keywordCase: 'upper' | 'lower' | 'preserve';
     functionCase: 'upper' | 'lower' | 'preserve';
     dataTypeCase: 'upper' | 'lower' | 'preserve';
@@ -19,8 +20,8 @@ interface RedgateSqlPromptConfig {
     linesBetweenQueries: number;
 }
 
-export class RedgateSqlFormatter {
-    private config: RedgateSqlPromptConfig;
+export class TSqlinatorFormatter {
+    private config: TSqlinatorConfig;
     
     private readonly keywords = [
         'SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'ALTER', 'DROP',
@@ -34,7 +35,7 @@ export class RedgateSqlFormatter {
         'DEFAULT', 'IDENTITY', 'AUTO_INCREMENT', 'WITH', 'CTE', 'RECURSIVE'
     ];
 
-    constructor(userConfig?: Partial<RedgateSqlPromptConfig>) {
+    constructor(userConfig?: Partial<TSqlinatorConfig>) {
         this.config = {
             keywordCase: 'upper',
             functionCase: 'upper',
@@ -430,7 +431,8 @@ export class RedgateSqlFormatter {
             const column = columns[i].trim();
             if (this.config.commaPosition === 'before') {
                 if (i === 0) {
-                    result.push('    ' + column);
+                    // First column aligned with comma position
+                    result.push('      ' + column);
                 } else {
                     result.push('    , ' + column);
                 }
@@ -728,7 +730,8 @@ export class RedgateSqlFormatter {
         for (let i = 0; i < columns.length; i++) {
             const column = columns[i];
             if (i === 0) {
-                result.push('    ' + column);
+                // First column aligned with comma position
+                result.push('      ' + column);
             } else {
                 result.push('    , ' + column);
             }

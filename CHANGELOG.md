@@ -2,7 +2,21 @@
 
 All notable changes to the "T-SQLinator" extension will be documented in this file.
 
-## [0.3.0] - 2025-09-23
+## [0.6.5] - 2025-09-25
+
+### Changed
+- **Rebranding**: Removed all Redgate references and updated to T-SQLinator branding
+  - Renamed `RedgateSqlFormatter` to `TSqlinatorFormatter`
+  - Updated file name from `redgateSqlFormatter.ts` to `tSqlinatorFormatter.ts`
+  - Updated all documentation and comments to reference T-SQLinator instead of Redgate
+  - Changed package keywords to reflect T-SQLinator branding
+- **Professional Formatting Style**: Updated descriptions to emphasize T-SQLinator's own professional formatting style
+
+### Fixed
+- Improved comma alignment in SELECT and GROUP BY clauses
+- First column now properly aligned with comma indentation level
+
+## [0.6.4] - 2025-09-25
 
 ### Added
 - **Advanced JOIN Formatting**: ON and AND clauses in JOIN statements are now properly formatted on separate lines with correct indentation
@@ -95,7 +109,7 @@ All notable changes to the "T-SQLinator" extension will be documented in this fi
 
 ### Added
 - Initial release of T-SQLinator
-- Custom SQL formatter that mimics Redgate SQL Prompt formatting style
+- Custom SQL formatter with professional T-SQLinator formatting style
 - Support for uppercase keywords, functions, and data types
 - Comma-before positioning for better readability
 - Proper indentation and line breaks
@@ -108,7 +122,7 @@ All notable changes to the "T-SQLinator" extension will be documented in this fi
 ### Features
 - Automatic detection and formatting of SQL files (.sql extension)
 - VS Code DocumentFormattingEditProvider integration
-- Custom RedgateSqlFormatter engine
+- Custom TSqlinatorFormatter engine
 - Support for complex SQL statements including:
   - SELECT queries with JOINs
   - INSERT, UPDATE, DELETE statements

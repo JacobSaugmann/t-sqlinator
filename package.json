@@ -2,7 +2,7 @@
   "name": "t-sqlinator",
   "displayName": "T-SQLinator",
   "description": "Format SQL documents",
-  "version": "0.6.3",
+  "version": "0.6.5",
   "publisher": "t-sqlinator",
   "author": {
     "name": "T-SQLinator Team"
@@ -27,8 +27,8 @@
     "sql",
     "t-sql",
     "formatter",
-    "redgate",
-    "sql-prompt",
+    "tsqlinator",
+    "professional-formatting",
     "format",
     "sqlinator"
   ],

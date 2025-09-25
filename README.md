@@ -7,7 +7,7 @@ And its created entierly by copilot and prompting
 ## Features
 
 - **Automatic SQL Formatting**: Format SQL documents with a single command or automatically when saving
-- **Redgate SQL Prompt Style**: Mimics the popular formatting style used by Redgate SQL Prompt
+- **T-SQLinator Professional Style**: Professional SQL formatting with consistent indentation and alignment
 - **Context Menu Integration**: Right-click in SQL files to access formatting options
 - **Command Palette Support**: Use `Format SQL Document` command from the command palette
 - **Keyboard Shortcuts**: Default keybindings for quick formatting (`Ctrl+Shift+F` or `Alt+Shift+F`)
@@ -109,6 +109,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Acknowledgments
 
-- Inspired by Redgate SQL Prompt formatting style
 - Built with the VS Code Extension API
-- Custom formatting engine designed specifically for T-SQL and SQL Server compatibility
+- Custom T-SQLinator formatting engine designed specifically for T-SQL and SQL Server compatibility

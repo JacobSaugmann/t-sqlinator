@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { RedgateSqlFormatter } from './redgateSqlFormatter';
+import { TSqlinatorFormatter } from './tSqlinatorFormatter';
 
 export function activate(context: vscode.ExtensionContext) {
     // Register a simple test command
@@ -46,7 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
             };
 
             // Create formatter and format the text
-            const sqlFormatter = new RedgateSqlFormatter(userConfig);
+            const sqlFormatter = new TSqlinatorFormatter(userConfig);
             const formattedText = sqlFormatter.format(text);
 
             // Apply the formatting to the document
@@ -91,7 +91,7 @@ class SqlFormattingProvider implements vscode.DocumentFormattingEditProvider {
             };
 
             // Create formatter with user settings
-            const sqlFormatter = new RedgateSqlFormatter(userConfig);
+            const sqlFormatter = new TSqlinatorFormatter(userConfig);
             const formattedText = sqlFormatter.format(text);
 
             // Create a TextEdit that replaces the entire document

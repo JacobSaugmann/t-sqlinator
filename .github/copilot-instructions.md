@@ -2,18 +2,18 @@
 - [x] Verify that the copilot-instructions.md file in the .github directory is created. ✅ COMPLETED
 
 - [x] Clarify Project Requirements ✅ COMPLETED
-	<!-- VS Code extension for SQL formatting using Redgate SQL Prompt style, TypeScript -->
+	<!-- VS Code extension for SQL formatting using T-SQLinator professional style, TypeScript -->
 
 - [x] Scaffold the Project ✅ COMPLETED
 	<!--
 	Created VS Code extension structure with package.json, tsconfig.json, main extension.ts file,
 	README.md, .gitignore, .vscodeignore, and source directory. Extension implements DocumentFormattingEditProvider
-	for SQL formatting using sql-formatter library with Redgate SQL Prompt style configuration.
+	for SQL formatting using T-SQLinator professional formatting configuration.
 	-->
 
 - [x] Customize the Project ✅ COMPLETED
 	<!--
-	Created custom RedgateSqlFormatter class that mimics Redgate SQL Prompt formatting style.
+	Created custom TSqlinatorFormatter class with professional T-SQLinator formatting style.
 	Implemented comprehensive SQL formatting with keyword case conversion, indentation, comma positioning,
 	and column alignment. Updated main extension to use custom formatter instead of external library.
 	-->
