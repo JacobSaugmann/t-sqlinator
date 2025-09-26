@@ -2,6 +2,30 @@
 
 All notable changes to the "T-SQLinator" extension will be documented in this file.
 
+## [0.6.8] - 2025-09-26
+
+### Fixed
+- **Critical Bug Fix**: Fixed multi-line SELECT parsing that was causing content loss
+  - Updated regex patterns to use `[\s\S]*?` instead of `.*?` to properly match across newlines
+  - Fixed issue where SELECT columns were being dropped during formatting
+  - Multi-line SELECT statements now preserve all content correctly
+
+## [0.6.7] - 2025-09-26
+
+### Fixed
+- **SELECT Statement Detection**: Fixed issue where multi-line SELECT statements were not properly detected
+  - Updated `determineBlockType` to handle "SELECT" without trailing space
+  - Improved `formatSimpleSelect` to preserve existing line breaks when formatting
+  - Multi-line SELECT statements now properly convert comma positions
+
+## [0.6.6] - 2025-09-26
+
+### Fixed
+- **Comma Position Conversion**: Fixed issue where trailing commas in SELECT statements were not properly converted
+  - Existing commas after column names are now properly removed when `commaPosition` is set to `before`
+  - Ensures consistent comma positioning regardless of input format
+  - Updated `formatComplexColumn` method to clean trailing commas
+
 ## [0.6.5] - 2025-09-25
 
 ### Changed

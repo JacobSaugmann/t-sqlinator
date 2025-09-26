@@ -233,7 +233,7 @@ export class TSqlinatorFormatter {
             return 'DECLARE_BLOCK';
         }
         
-        if (upperLine.startsWith('SELECT ') && !upperLine.includes(' INTO ') && !upperLine.includes(' WITH ')) {
+        if ((upperLine.startsWith('SELECT ') || upperLine.startsWith('SELECT')) && !upperLine.includes(' INTO ') && !upperLine.includes(' WITH ')) {
             return 'SIMPLE_SELECT';
         }
         
@@ -295,11 +295,18 @@ export class TSqlinatorFormatter {
     }
 
     private formatSimpleSelect(sql: string): string {
-        // Only format simple SELECT statements
+        // Format SELECT statements (handle both single-line and multi-line)
         try {
-            const normalized = this.normalizeSql(sql);
-            const keywordFormatted = this.applyKeywordCasing(normalized);
-            return this.formatSelectStatement(keywordFormatted);
+            // If already multi-line, don't normalize - just format directly
+            if (sql.includes('\n')) {
+                const keywordFormatted = this.applyKeywordCasing(sql);
+                return this.formatSelectStatement(keywordFormatted);
+            } else {
+                // Single-line SELECT, normalize then format
+                const normalized = this.normalizeSql(sql);
+                const keywordFormatted = this.applyKeywordCasing(normalized);
+                return this.formatSelectStatement(keywordFormatted);
+            }
         } catch (error) {
             // If formatting fails, return with basic formatting
             return this.applyBasicFormatting(sql);
@@ -387,33 +394,33 @@ export class TSqlinatorFormatter {
     } {
         const components: any = {};
 
-        // Simple regex parsing for basic SELECT statements
-        const selectMatch = sql.match(/^SELECT\s+(.*?)(?=\s+FROM|\s*$)/i);
+        // Simple regex parsing for basic SELECT statements with multi-line support
+        const selectMatch = sql.match(/^SELECT\s+([\s\S]*?)(?=\s+FROM|\s*$)/i);
         if (selectMatch) {
             components.select = selectMatch[1].trim();
         }
 
-        const fromMatch = sql.match(/\bFROM\s+(.*?)(?=\s+WHERE|\s+GROUP\s+BY|\s+ORDER\s+BY|\s+HAVING|\s*$)/i);
+        const fromMatch = sql.match(/\bFROM\s+([\s\S]*?)(?=\s+WHERE|\s+GROUP\s+BY|\s+ORDER\s+BY|\s+HAVING|\s*$)/i);
         if (fromMatch) {
             components.from = fromMatch[1].trim();
         }
 
-        const whereMatch = sql.match(/\bWHERE\s+(.*?)(?=\s+GROUP\s+BY|\s+ORDER\s+BY|\s+HAVING|\s*$)/i);
+        const whereMatch = sql.match(/\bWHERE\s+([\s\S]*?)(?=\s+GROUP\s+BY|\s+ORDER\s+BY|\s+HAVING|\s*$)/i);
         if (whereMatch) {
             components.where = whereMatch[1].trim();
         }
 
-        const groupByMatch = sql.match(/\bGROUP\s+BY\s+(.*?)(?=\s+ORDER\s+BY|\s+HAVING|\s*$)/i);
+        const groupByMatch = sql.match(/\bGROUP\s+BY\s+([\s\S]*?)(?=\s+ORDER\s+BY|\s+HAVING|\s*$)/i);
         if (groupByMatch) {
             components.groupBy = groupByMatch[1].trim();
         }
 
-        const havingMatch = sql.match(/\bHAVING\s+(.*?)(?=\s+ORDER\s+BY|\s*$)/i);
+        const havingMatch = sql.match(/\bHAVING\s+([\s\S]*?)(?=\s+ORDER\s+BY|\s*$)/i);
         if (havingMatch) {
             components.having = havingMatch[1].trim();
         }
 
-        const orderByMatch = sql.match(/\bORDER\s+BY\s+(.*?)$/i);
+        const orderByMatch = sql.match(/\bORDER\s+BY\s+([\s\S]*?)$/i);
         if (orderByMatch) {
             components.orderBy = orderByMatch[1].trim();
         }
@@ -491,18 +498,21 @@ export class TSqlinatorFormatter {
     }
 
     private formatComplexColumn(column: string): string {
+        // Remove trailing comma if present (will be handled by comma positioning logic)
+        let cleanedColumn = column.replace(/,\s*$/, '').trim();
+        
         // Handle CASE statements
-        if (column.toUpperCase().includes('CASE ')) {
-            return this.formatCaseStatement(column);
+        if (cleanedColumn.toUpperCase().includes('CASE ')) {
+            return this.formatCaseStatement(cleanedColumn);
         }
         
         // Handle window functions (functions with OVER clause)
-        if (column.toUpperCase().includes(' OVER ')) {
-            return this.formatWindowFunction(column);
+        if (cleanedColumn.toUpperCase().includes(' OVER ')) {
+            return this.formatWindowFunction(cleanedColumn);
         }
         
         // Return column as-is for simple expressions
-        return column;
+        return cleanedColumn;
     }
 
     private formatCaseStatement(caseColumn: string): string {
