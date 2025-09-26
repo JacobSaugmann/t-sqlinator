@@ -4,6 +4,24 @@ All notable changes to the "T-SQLinator" extension will be documented in this fi
 
 ## [0.7.0] - 2025-09-26
 
+### MAJOR FIX: SQL Parsing & ORDER BY Alignment ✅
+- **CRITICAL FIX**: Fixed window function parsing bug that was corrupting ORDER BY clauses
+- **ORDER BY Formatting**: ORDER BY sections now show correct columns with proper comma-first alignment
+- **Robust Parsing**: Improved SQL component parsing with accurate parentheses tracking
+- **Window Function Support**: Window functions no longer break SQL structure or duplicate content
+
+### NEW: Advanced Comment Handling
+- **Intelligent Inline Comments**: Comments on the same line as code now stay on the line with proper tab spacing
+- **Standalone Comment Spacing**: Comments on their own lines get 2 blank lines above and below
+- **SELECT Column Comments**: Inline comments after commas in SELECT lists are correctly attached to the preceding column
+- **WHERE Clause Comments**: Inline comments in WHERE conditions are preserved with proper formatting
+- **Multi-line Comment Support**: Block comments (/* */) and line comments (--) are handled intelligently
+
+### Comment Formatting Rules
+- **Inline comments** (after code): Stay on same line with tab spacing
+- **Standalone comments**: Get 2 blank lines above and below for visual separation  
+- **Comments inside statements**: Preserved in their original location
+
 ### Fixed
 - **Window Function Scope Issue**: Fixed issue where window function formatting affected regular SQL clauses
   - Window function formatting now only applies to SELECT column expressions with `OVER (` 

@@ -61,11 +61,8 @@ export class TSqlinatorFormatter {
             const formattedBlocks: string[] = [];
 
             for (const block of blocks) {
-                if (block.type === 'COMMENT') {
-                    // Preserve comments exactly as they are
-                    formattedBlocks.push(block.content);
-                } else if (block.type === 'LINE_COMMENT') {
-                    // For grouped line comments, preserve them and add one line break after
+                if (block.type === 'COMMENT' || block.type === 'LINE_COMMENT') {
+                    // Comments are already formatted, just preserve them
                     formattedBlocks.push(block.content);
                 } else if (block.type === 'CTE_STATEMENT') {
                     // Format CTE statements with special handling
@@ -86,20 +83,28 @@ export class TSqlinatorFormatter {
                 }
             }
 
-            // Join blocks intelligently - don't add extra spacing around comments
+            // Join blocks intelligently with proper comment spacing
             const result: string[] = [];
             for (let i = 0; i < formattedBlocks.length; i++) {
                 const block = blocks[i];
                 const content = formattedBlocks[i];
                 
                 if (i > 0) {
-                    // Check if previous or current block is a comment
                     const previousBlock = blocks[i - 1];
-                    const isComment = block.type === 'LINE_COMMENT' || block.type === 'COMMENT';
-                    const wasPreviousComment = previousBlock.type === 'LINE_COMMENT' || previousBlock.type === 'COMMENT';
+                    const isStandaloneComment = (block.type === 'LINE_COMMENT' || block.type === 'COMMENT') && 
+                                             this.isStandaloneComment(block.content);
+                    const wasPreviousStandaloneComment = (previousBlock.type === 'LINE_COMMENT' || previousBlock.type === 'COMMENT') && 
+                                                      this.isStandaloneComment(previousBlock.content);
                     
-                    if (isComment || wasPreviousComment) {
-                        // Only single line break for comments
+                    if (isStandaloneComment && !wasPreviousStandaloneComment) {
+                        // Add 2 blank lines before standalone comment
+                        result.push('\n\n\n');
+                    } else if (!isStandaloneComment && wasPreviousStandaloneComment) {
+                        // Add 2 blank lines after standalone comment
+                        result.push('\n\n\n');
+                    } else if (block.type === 'LINE_COMMENT' || block.type === 'COMMENT' || 
+                              previousBlock.type === 'LINE_COMMENT' || previousBlock.type === 'COMMENT') {
+                        // Regular spacing for other comments
                         result.push('\n');
                     } else {
                         // Double line break for regular statements
@@ -378,7 +383,7 @@ export class TSqlinatorFormatter {
 
         // Format ORDER BY clause
         if (components.orderBy) {
-            result.push('ORDER BY ' + components.orderBy);
+            result.push(...this.formatOrderByClause(components.orderBy));
         }
 
         return result.join('\n');
@@ -393,38 +398,94 @@ export class TSqlinatorFormatter {
         orderBy?: string
     } {
         const components: any = {};
-
-        // Simple regex parsing for basic SELECT statements with multi-line support
-        const selectMatch = sql.match(/^SELECT\s+([\s\S]*?)(?=\s+FROM|\s*$)/i);
-        if (selectMatch) {
-            components.select = selectMatch[1].trim();
+        
+        // We need to carefully track parentheses throughout the entire document
+        // to avoid matching ORDER BY inside window functions
+        
+        let currentPos = 0;
+        let parenDepth = 0;
+        const clauses: {type: string, start: number, end: number}[] = [];
+        
+        // Track parentheses throughout the document
+        for (let i = 0; i < sql.length; i++) {
+            const char = sql[i];
+            if (char === '(') {
+                parenDepth++;
+            } else if (char === ')') {
+                parenDepth--;
+            }
+            
+            // Only check for keywords when we're at the top level
+            if (parenDepth === 0) {
+                // Check if we're at the start of a keyword
+                const remaining = sql.substring(i);
+                
+                let match = null;
+                if (remaining.match(/^SELECT\b/i)) {
+                    match = { keyword: 'SELECT', length: 6 };
+                } else if (remaining.match(/^FROM\b/i)) {
+                    match = { keyword: 'FROM', length: 4 };
+                } else if (remaining.match(/^WHERE\b/i)) {
+                    match = { keyword: 'WHERE', length: 5 };
+                } else if (remaining.match(/^GROUP\s+BY\b/i)) {
+                    const groupByMatch = remaining.match(/^GROUP\s+BY/i);
+                    if (groupByMatch) {
+                        match = { keyword: 'GROUP_BY', length: groupByMatch[0].length };
+                    }
+                } else if (remaining.match(/^HAVING\b/i)) {
+                    match = { keyword: 'HAVING', length: 6 };
+                } else if (remaining.match(/^ORDER\s+BY\b/i)) {
+                    const orderByMatch = remaining.match(/^ORDER\s+BY/i);
+                    if (orderByMatch) {
+                        match = { keyword: 'ORDER_BY', length: orderByMatch[0].length };
+                    }
+                }
+                
+                if (match) {
+                    // End the previous clause
+                    if (clauses.length > 0) {
+                        clauses[clauses.length - 1].end = i;
+                    }
+                    
+                    // Start new clause
+                    clauses.push({
+                        type: match.keyword,
+                        start: i + match.length,
+                        end: sql.length
+                    });
+                    
+                    // Skip ahead past this keyword
+                    i += match.length - 1; // -1 because the loop will increment
+                }
+            }
         }
-
-        const fromMatch = sql.match(/\bFROM\s+([\s\S]*?)(?=\s+WHERE|\s+GROUP\s+BY|\s+ORDER\s+BY|\s+HAVING|\s*$)/i);
-        if (fromMatch) {
-            components.from = fromMatch[1].trim();
+        
+        // Extract content for each clause
+        for (const clause of clauses) {
+            const content = sql.substring(clause.start, clause.end).trim();
+            
+            switch (clause.type) {
+                case 'SELECT':
+                    components.select = content;
+                    break;
+                case 'FROM':
+                    components.from = content;
+                    break;
+                case 'WHERE':
+                    components.where = content;
+                    break;
+                case 'GROUP_BY':
+                    components.groupBy = content;
+                    break;
+                case 'HAVING':
+                    components.having = content;
+                    break;
+                case 'ORDER_BY':
+                    components.orderBy = content;
+                    break;
+            }
         }
-
-        const whereMatch = sql.match(/\bWHERE\s+([\s\S]*?)(?=\s+GROUP\s+BY|\s+ORDER\s+BY|\s+HAVING|\s*$)/i);
-        if (whereMatch) {
-            components.where = whereMatch[1].trim();
-        }
-
-        const groupByMatch = sql.match(/\bGROUP\s+BY\s+([\s\S]*?)(?=\s+ORDER\s+BY|\s+HAVING|\s*$)/i);
-        if (groupByMatch) {
-            components.groupBy = groupByMatch[1].trim();
-        }
-
-        const havingMatch = sql.match(/\bHAVING\s+([\s\S]*?)(?=\s+ORDER\s+BY|\s*$)/i);
-        if (havingMatch) {
-            components.having = havingMatch[1].trim();
-        }
-
-        const orderByMatch = sql.match(/\bORDER\s+BY\s+([\s\S]*?)$/i);
-        if (orderByMatch) {
-            components.orderBy = orderByMatch[1].trim();
-        }
-
+        
         return components;
     }
 
@@ -436,18 +497,22 @@ export class TSqlinatorFormatter {
         
         for (let i = 0; i < columns.length; i++) {
             const column = columns[i].trim();
+            
+            // Format the column using formatComplexColumn
+            const formattedColumn = this.formatComplexColumn(column);
+            
             if (this.config.commaPosition === 'before') {
                 if (i === 0) {
-                    // First column aligned with comma position
-                    result.push('      ' + column);
+                    // First column aligned with comma position  
+                    result.push('      ' + formattedColumn);
                 } else {
-                    result.push('    , ' + column);
+                    result.push('    , ' + formattedColumn);
                 }
             } else {
                 if (i === columns.length - 1) {
-                    result.push('    ' + column);
+                    result.push('    ' + formattedColumn);
                 } else {
-                    result.push('    ' + column + ',');
+                    result.push('    ' + formattedColumn + ',');
                 }
             }
         }
@@ -464,6 +529,44 @@ export class TSqlinatorFormatter {
 
         for (let i = 0; i < selectContent.length; i++) {
             const char = selectContent[i];
+
+            if (!inQuotes && (char === "'" || char === '"')) {
+                inQuotes = true;
+                quoteChar = char;
+            } else if (inQuotes && char === quoteChar) {
+                inQuotes = false;
+                quoteChar = '';
+            } else if (!inQuotes && char === '(') {
+                parenLevel++;
+            } else if (!inQuotes && char === ')') {
+                parenLevel--;
+            } else if (!inQuotes && char === ',' && parenLevel === 0) {
+                if (currentColumn.trim()) {
+                    columns.push(currentColumn.trim());
+                }
+                currentColumn = '';
+                continue;
+            }
+
+            currentColumn += char;
+        }
+
+        if (currentColumn.trim()) {
+            columns.push(currentColumn.trim());
+        }
+
+        return columns;
+    }
+    
+    private parseColumnPart(content: string): string[] {
+        const columns: string[] = [];
+        let currentColumn = '';
+        let parenLevel = 0;
+        let inQuotes = false;
+        let quoteChar = '';
+
+        for (let i = 0; i < content.length; i++) {
+            const char = content[i];
 
             if (!inQuotes && (char === "'" || char === '"')) {
                 inQuotes = true;
@@ -496,23 +599,44 @@ export class TSqlinatorFormatter {
 
         return columns;
     }
+    
+    private hasCodeBeforeComment(line: string): boolean {
+        const commentIndex = line.indexOf('--');
+        if (commentIndex === -1) return false;
+        
+        const beforeComment = line.substring(0, commentIndex).trim();
+        return beforeComment.length > 0;
+    }
 
     private formatComplexColumn(column: string): string {
+        // Extract inline comment first
+        const inlineComment = this.extractInlineComment(column);
+        let cleanedColumn = inlineComment.code.trim();
+        
         // Remove trailing comma if present (will be handled by comma positioning logic)
-        let cleanedColumn = column.replace(/,\s*$/, '').trim();
+        cleanedColumn = cleanedColumn.replace(/,\s*$/, '').trim();
+        
+        let formattedColumn = cleanedColumn;
         
         // Handle CASE statements
-        if (cleanedColumn.toUpperCase().includes('CASE ')) {
-            return this.formatCaseStatement(cleanedColumn);
+        if (formattedColumn.toUpperCase().includes('CASE ')) {
+            formattedColumn = this.formatCaseStatement(formattedColumn);
         }
         
-        // Handle window functions (functions with OVER clause) - be more specific
-        if (cleanedColumn.toUpperCase().includes(' OVER (')) {
-            return this.formatWindowFunction(cleanedColumn);
+        // Handle window functions - be very restrictive to avoid parsing errors
+        // Only process if this looks like a single column with OVER clause
+        else if (formattedColumn.toUpperCase().includes(' OVER (') && 
+                 !formattedColumn.match(/\b(?:FROM|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|UNION|INSERT|UPDATE|DELETE)\b/i) &&
+                 formattedColumn.split('(').length - formattedColumn.split(')').length === 0) { // Balanced parentheses
+            formattedColumn = this.formatWindowFunction(formattedColumn);
         }
         
-        // Return column as-is for simple expressions
-        return cleanedColumn;
+        // Re-attach inline comment with proper spacing
+        if (inlineComment.comment) {
+            formattedColumn += '\t' + inlineComment.comment;
+        }
+        
+        return formattedColumn;
     }
 
     private formatCaseStatement(caseColumn: string): string {
@@ -542,20 +666,53 @@ export class TSqlinatorFormatter {
     }
 
     private formatWindowFunction(windowColumn: string): string {
-        // Advanced window function formatting with proper alignment
-        let formatted = windowColumn;
+        // Find the OVER clause position using more precise matching
+        const upperColumn = windowColumn.toUpperCase();
+        const overIndex = upperColumn.indexOf(' OVER (');
         
-        // Find OVER clause and format it
-        const overMatch = formatted.match(/(.+?)\s+OVER\s*\((.+?)\)(.*)$/is);
-        if (!overMatch) return windowColumn;
+        if (overIndex === -1) return windowColumn;
         
-        const [, beforeOver, overContent, afterOver] = overMatch;
+        const functionPart = windowColumn.substring(0, overIndex).trim();
         
-        // Format the OVER clause content with proper indentation
-        let formattedOverContent = this.formatOverClauseContent(overContent.trim());
+        // Find matching closing parenthesis for OVER clause using parentheses counting
+        let parenCount = 1; // We start after the opening parenthesis
+        let overStart = overIndex + 7; // Position after ' OVER ('
+        let overEnd = -1;
         
-        // Build the formatted window function with aligned parentheses
-        const result = beforeOver + ' OVER (\n' + formattedOverContent + '\n                          )' + afterOver;
+        for (let i = overStart; i < windowColumn.length; i++) {
+            if (windowColumn[i] === '(') {
+                parenCount++;
+            } else if (windowColumn[i] === ')') {
+                parenCount--;
+                if (parenCount === 0) {
+                    overEnd = i;
+                    break;
+                }
+            }
+        }
+        
+        if (overEnd === -1) return windowColumn; // Unmatched parentheses
+        
+        const overContent = windowColumn.substring(overStart, overEnd).trim();
+        const remainder = windowColumn.substring(overEnd + 1).trim();
+        
+        // Format the OVER clause content
+        const formattedOverContent = this.formatOverClauseContent(overContent);
+        
+        let result = functionPart + '\n        OVER (';
+        
+        if (formattedOverContent) {
+            result += '\n            ' + formattedOverContent;
+            result += '\n        )';
+        } else {
+            result += ')';
+        }
+        
+        // Add any remainder (like AS alias)
+        if (remainder) {
+            result += ' ' + remainder;
+        }
+        
         return result;
     }
 
@@ -566,11 +723,11 @@ export class TSqlinatorFormatter {
         // Base indentation for content inside OVER()
         const baseIndent = '                               ';
         
-        // More specific parsing to avoid interfering with other SQL clauses
+        // More restrictive parsing to stay within the OVER clause
         let remaining = formatted;
         
-        // Handle PARTITION BY (only at the beginning or after whitespace)
-        const partitionMatch = remaining.match(/^(\s*)(PARTITION\s+BY\s+[^O]+?)(?=\s+ORDER\s+BY|\s+ROWS\s+BETWEEN|\s*$)/is);
+        // Handle PARTITION BY (only window function specific, not general SQL)
+        const partitionMatch = remaining.match(/^(\s*)(PARTITION\s+BY\s+[^,)]+?)(?=\s+ORDER\s+BY|\s+ROWS\s+BETWEEN|\s*$)/i);
         if (partitionMatch) {
             const [, before, partitionClause] = partitionMatch;
             if (before.trim()) {
@@ -580,8 +737,8 @@ export class TSqlinatorFormatter {
             remaining = remaining.substring((before + partitionClause).length);
         }
         
-        // Handle ORDER BY (only at the beginning or after PARTITION BY)
-        const orderMatch = remaining.match(/^(\s*)(ORDER\s+BY\s+[^R]+?)(?=\s+ROWS\s+BETWEEN|\s*$)/is);
+        // Handle ORDER BY (only window function specific)
+        const orderMatch = remaining.match(/^(\s*)(ORDER\s+BY\s+[^,)]+?)(?=\s+ROWS\s+BETWEEN|\s*$)/i);
         if (orderMatch) {
             const [, before, orderClause] = orderMatch;
             if (before.trim()) {
@@ -592,7 +749,7 @@ export class TSqlinatorFormatter {
         }
         
         // Handle ROWS/RANGE clauses (only at the end)
-        const rowsMatch = remaining.match(/^(\s*)((?:ROWS|RANGE)\s+BETWEEN\s+.+?)$/is);
+        const rowsMatch = remaining.match(/^(\s*)((?:ROWS|RANGE)\s+BETWEEN\s+.+?)$/i);
         if (rowsMatch) {
             const [, before, rowsClause] = rowsMatch;
             if (before.trim()) {
@@ -602,8 +759,8 @@ export class TSqlinatorFormatter {
             remaining = '';
         }
         
-        // Handle any remaining content
-        if (remaining.trim()) {
+        // Handle any remaining content (but be cautious)
+        if (remaining.trim() && !remaining.match(/\b(?:FROM|WHERE|GROUP\s+BY|HAVING|ORDER\s+BY|UNION)\b/i)) {
             lines.push(baseIndent + remaining.trim());
         }
         
@@ -716,6 +873,35 @@ export class TSqlinatorFormatter {
             const trimmedLine = line.trim();
             if (trimmedLine) {
                 result.push(trimmedLine);
+            }
+        }
+        
+        return result;
+    }
+
+    private formatOrderByClause(orderByContent: string): string[] {
+        const result: string[] = [];
+        
+        // Split ORDER BY columns by comma
+        const columns = orderByContent.split(',');
+        
+        result.push('ORDER BY');
+        
+        for (let i = 0; i < columns.length; i++) {
+            const column = columns[i].trim();
+            if (this.config.commaPosition === 'before') {
+                if (i === 0) {
+                    // First column aligned with comma position
+                    result.push('      ' + column);
+                } else {
+                    result.push('    , ' + column);
+                }
+            } else {
+                if (i === columns.length - 1) {
+                    result.push('    ' + column);
+                } else {
+                    result.push('    ' + column + ',');
+                }
             }
         }
         
@@ -837,14 +1023,168 @@ export class TSqlinatorFormatter {
     }
 
     private formatWhereAndConditions(sql: string): string {
-        // Enhanced WHERE/AND formatting for better readability
+        // Enhanced WHERE/AND formatting for better readability with comment preservation
         let result = sql;
         
-        // Handle WHERE clause with AND/OR on new lines
-        result = result.replace(/\bWHERE\s+/gi, 'WHERE ');
-        result = result.replace(/\s+AND\s+/gi, '\n    AND ');
-        result = result.replace(/\s+OR\s+/gi, '\n    OR ');
+        // Split by lines to handle each line individually
+        const lines = result.split(/\r?\n/);
+        const formattedLines: string[] = [];
+        
+        for (const line of lines) {
+            const inlineComment = this.extractInlineComment(line);
+            let codePart = inlineComment.code;
+            
+            // Apply AND/OR formatting to code part only
+            codePart = codePart.replace(/\bWHERE\s+/gi, 'WHERE ');
+            codePart = codePart.replace(/\s+AND\s+/gi, '\n    AND ');
+            codePart = codePart.replace(/\s+OR\s+/gi, '\n    OR ');
+            
+            // Split the formatted code and re-attach comments
+            const codeLines = codePart.split('\n');
+            if (codeLines.length > 1 && inlineComment.comment) {
+                // Comment goes with the first line before splitting
+                formattedLines.push(codeLines[0] + '\t' + inlineComment.comment);
+                // Add remaining lines without comment
+                for (let i = 1; i < codeLines.length; i++) {
+                    formattedLines.push(codeLines[i]);
+                }
+            } else if (inlineComment.comment) {
+                formattedLines.push(codePart + '\t' + inlineComment.comment);
+            } else {
+                formattedLines.push(codePart);
+            }
+        }
+        
+        return formattedLines.join('\n');
+    }
+
+    private formatComments(sql: string): string {
+        const lines = sql.split(/\r?\n/);
+        const formattedLines: string[] = [];
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmedLine = line.trim();
+            
+            // Check for inline comments (-- or /* */)
+            if (this.hasInlineComment(line)) {
+                // Format inline comments with proper spacing
+                formattedLines.push(this.formatInlineComment(line));
+            } else {
+                // Regular line - no comment formatting needed
+                formattedLines.push(line);
+            }
+        }
+        
+        return formattedLines.join('\n');
+    }
+
+    private hasInlineComment(line: string): boolean {
+        const trimmedLine = line.trim();
+        
+        // Skip if the line starts with a comment (standalone comment)
+        if (trimmedLine.startsWith('--') || trimmedLine.startsWith('/*')) {
+            return false;
+        }
+        
+        // Check for inline -- comment
+        const lineCommentIndex = line.indexOf('--');
+        if (lineCommentIndex > 0) {
+            // Make sure it's not inside quotes
+            const beforeComment = line.substring(0, lineCommentIndex);
+            const singleQuotes = (beforeComment.match(/'/g) || []).length;
+            const doubleQuotes = (beforeComment.match(/"/g) || []).length;
+            
+            // If we have an even number of quotes, the comment is not inside a string
+            return singleQuotes % 2 === 0 && doubleQuotes % 2 === 0;
+        }
+        
+        // Check for inline /* */ comment
+        const blockCommentStart = line.indexOf('/*');
+        if (blockCommentStart > 0 && line.includes('*/')) {
+            const beforeComment = line.substring(0, blockCommentStart);
+            const singleQuotes = (beforeComment.match(/'/g) || []).length;
+            const doubleQuotes = (beforeComment.match(/"/g) || []).length;
+            
+            return singleQuotes % 2 === 0 && doubleQuotes % 2 === 0;
+        }
+        
+        return false;
+    }
+
+    private formatInlineComment(line: string): string {
+        // Format -- inline comments
+        let result = line;
+        const lineCommentIndex = result.indexOf('--');
+        if (lineCommentIndex > 0) {
+            const beforeComment = result.substring(0, lineCommentIndex).trimEnd();
+            const comment = result.substring(lineCommentIndex);
+            result = beforeComment + '\t' + comment;
+        }
+        
+        // Format /* */ inline comments
+        const blockCommentStart = result.indexOf('/*');
+        if (blockCommentStart > 0 && result.includes('*/')) {
+            const beforeComment = result.substring(0, blockCommentStart).trimEnd();
+            const commentPart = result.substring(blockCommentStart);
+            result = beforeComment + '\t' + commentPart;
+        }
         
         return result;
+    }
+
+    private isStandaloneComment(content: string): boolean {
+        const lines = content.split(/\r?\n/);
+        
+        // Check if all lines are comments or empty
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (trimmedLine && !trimmedLine.startsWith('--') && !trimmedLine.startsWith('/*') && !trimmedLine.endsWith('*/')) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
+    private extractInlineComment(line: string): { code: string, comment: string } {
+        // Extract inline comments from a line of code
+        let code = line;
+        let comment = '';
+        
+        // Handle -- comments
+        const lineCommentIndex = line.indexOf('--');
+        if (lineCommentIndex > 0) {
+            // Make sure it's not inside quotes
+            const beforeComment = line.substring(0, lineCommentIndex);
+            const singleQuotes = (beforeComment.match(/'/g) || []).length;
+            const doubleQuotes = (beforeComment.match(/"/g) || []).length;
+            
+            // If we have an even number of quotes, the comment is not inside a string
+            if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0) {
+                code = beforeComment.trimEnd();
+                comment = line.substring(lineCommentIndex);
+                return { code, comment };
+            }
+        }
+        
+        // Handle /* */ comments inline (single line block comments)
+        const blockCommentStart = line.indexOf('/*');
+        if (blockCommentStart > 0 && line.includes('*/')) {
+            const blockCommentEnd = line.indexOf('*/') + 2;
+            const beforeComment = line.substring(0, blockCommentStart);
+            const singleQuotes = (beforeComment.match(/'/g) || []).length;
+            const doubleQuotes = (beforeComment.match(/"/g) || []).length;
+            
+            if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0) {
+                const commentPart = line.substring(blockCommentStart, blockCommentEnd);
+                const afterComment = line.substring(blockCommentEnd);
+                code = (beforeComment + afterComment).trim();
+                comment = commentPart;
+                return { code, comment };
+            }
+        }
+        
+        return { code, comment };
     }
 }
