@@ -133,7 +133,7 @@ WHERE emp.Status = 'Terminated'
 --This is a single line comment
 --This is another single line comment
 --Final comment in group
-
+GO
 /* Test stored procedure creation */
 CREATE PROCEDURE GetEmployeeSalaryReport
     @DepartmentID INT = NULL,

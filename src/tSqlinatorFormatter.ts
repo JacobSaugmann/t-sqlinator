@@ -506,8 +506,8 @@ export class TSqlinatorFormatter {
             return this.formatCaseStatement(cleanedColumn);
         }
         
-        // Handle window functions (functions with OVER clause)
-        if (cleanedColumn.toUpperCase().includes(' OVER ')) {
+        // Handle window functions (functions with OVER clause) - be more specific
+        if (cleanedColumn.toUpperCase().includes(' OVER (')) {
             return this.formatWindowFunction(cleanedColumn);
         }
         
@@ -542,27 +542,77 @@ export class TSqlinatorFormatter {
     }
 
     private formatWindowFunction(windowColumn: string): string {
-        // Simple regex-based approach for window function formatting
+        // Advanced window function formatting with proper alignment
         let formatted = windowColumn;
         
         // Find OVER clause and format it
-        const overMatch = formatted.match(/(.+?)\s+OVER\s*\((.+?)\)(.*)$/i);
+        const overMatch = formatted.match(/(.+?)\s+OVER\s*\((.+?)\)(.*)$/is);
         if (!overMatch) return windowColumn;
         
         const [, beforeOver, overContent, afterOver] = overMatch;
         
-        // Format the OVER clause content
-        let formattedOverContent = overContent.trim();
+        // Format the OVER clause content with proper indentation
+        let formattedOverContent = this.formatOverClauseContent(overContent.trim());
         
-        // Add line breaks for PARTITION BY and ORDER BY
-        formattedOverContent = formattedOverContent.replace(/\s*PARTITION\s+BY\s+/gi, '\n        PARTITION BY ');
-        formattedOverContent = formattedOverContent.replace(/\s*ORDER\s+BY\s+/gi, '\n        ORDER BY ');
-        formattedOverContent = formattedOverContent.replace(/\s*ROWS\s+BETWEEN\s+/gi, '\n        ROWS BETWEEN ');
+        // Build the formatted window function with aligned parentheses
+        const result = beforeOver + ' OVER (\n' + formattedOverContent + '\n                          )' + afterOver;
+        return result;
+    }
+
+    private formatOverClauseContent(content: string): string {
+        let formatted = content;
+        const lines: string[] = [];
         
-        // Clean up extra whitespace
-        formattedOverContent = formattedOverContent.replace(/^\s+/, '');
+        // Base indentation for content inside OVER()
+        const baseIndent = '                               ';
         
-        return beforeOver + ' OVER (\n        ' + formattedOverContent + '\n    )' + afterOver;
+        // More specific parsing to avoid interfering with other SQL clauses
+        let remaining = formatted;
+        
+        // Handle PARTITION BY (only at the beginning or after whitespace)
+        const partitionMatch = remaining.match(/^(\s*)(PARTITION\s+BY\s+[^O]+?)(?=\s+ORDER\s+BY|\s+ROWS\s+BETWEEN|\s*$)/is);
+        if (partitionMatch) {
+            const [, before, partitionClause] = partitionMatch;
+            if (before.trim()) {
+                lines.push(baseIndent + before.trim());
+            }
+            lines.push(baseIndent + partitionClause.replace(/\s+/g, ' ').trim());
+            remaining = remaining.substring((before + partitionClause).length);
+        }
+        
+        // Handle ORDER BY (only at the beginning or after PARTITION BY)
+        const orderMatch = remaining.match(/^(\s*)(ORDER\s+BY\s+[^R]+?)(?=\s+ROWS\s+BETWEEN|\s*$)/is);
+        if (orderMatch) {
+            const [, before, orderClause] = orderMatch;
+            if (before.trim()) {
+                lines.push(baseIndent + before.trim());
+            }
+            lines.push(baseIndent + orderClause.replace(/\s+/g, ' ').trim());
+            remaining = remaining.substring((before + orderClause).length);
+        }
+        
+        // Handle ROWS/RANGE clauses (only at the end)
+        const rowsMatch = remaining.match(/^(\s*)((?:ROWS|RANGE)\s+BETWEEN\s+.+?)$/is);
+        if (rowsMatch) {
+            const [, before, rowsClause] = rowsMatch;
+            if (before.trim()) {
+                lines.push(baseIndent + before.trim());
+            }
+            lines.push(baseIndent + rowsClause.replace(/\s+/g, ' ').trim());
+            remaining = '';
+        }
+        
+        // Handle any remaining content
+        if (remaining.trim()) {
+            lines.push(baseIndent + remaining.trim());
+        }
+        
+        // If no specific clauses found, just indent the whole content
+        if (lines.length === 0) {
+            lines.push(baseIndent + content.replace(/\s+/g, ' ').trim());
+        }
+        
+        return lines.join('\n');
     }
 
     private formatFromClause(fromContent: string): string[] {

@@ -2,6 +2,36 @@
 
 All notable changes to the "T-SQLinator" extension will be documented in this file.
 
+## [0.7.0] - 2025-09-26
+
+### Fixed
+- **Window Function Scope Issue**: Fixed issue where window function formatting affected regular SQL clauses
+  - Window function formatting now only applies to SELECT column expressions with `OVER (` 
+  - Regular GROUP BY, ORDER BY, and HAVING clauses are no longer affected
+  - Made regex patterns more specific to avoid false matches
+  - `formatOverClauseContent` now uses more precise pattern matching
+
+### Important
+Window function formatting is now correctly isolated to only SELECT column expressions containing `OVER (...)` clauses.
+
+## [0.6.9] - 2025-09-26
+
+### Enhanced
+- **Advanced Window Function Formatting**: Complete redesign of window function formatting
+  - Parentheses are now properly aligned: `OVER (` and closing `)` at same column position
+  - `PARTITION BY`, `ORDER BY`, and `ROWS BETWEEN` clauses are perfectly aligned inside
+  - Added `formatOverClauseContent` method for sophisticated multi-clause handling
+  - Window functions now match professional SQL formatting standards
+
+### Example
+```sql
+, SUM(e.Salary) OVER (
+                        PARTITION BY e.DepartmentID
+                        ORDER BY e.HireDate
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                     ) AS RunningTotalSalary
+```
+
 ## [0.6.8] - 2025-09-26
 
 ### Fixed
