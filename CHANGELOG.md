@@ -2,13 +2,20 @@
 
 All notable changes to the "T-SQLinator" extension will be documented in this file.
 
-## [0.7.0] - 2025-09-26
+## [0.7.1] - 2025-09-26
 
 ### MAJOR FIX: SQL Parsing & ORDER BY Alignment ✅
 - **CRITICAL FIX**: Fixed window function parsing bug that was corrupting ORDER BY clauses
 - **ORDER BY Formatting**: ORDER BY sections now show correct columns with proper comma-first alignment
 - **Robust Parsing**: Improved SQL component parsing with accurate parentheses tracking
 - **Window Function Support**: Window functions no longer break SQL structure or duplicate content
+
+### Code Improvements
+- **Enhanced parseSelectComponents**: Character-by-character parsing with accurate parentheses depth tracking
+- **Improved formatWindowFunction**: Balanced parentheses counting prevents over-matching
+- **Clean Codebase**: Removed debug files and test artifacts
+
+## [0.7.0] - 2025-09-26
 
 ### NEW: Advanced Comment Handling
 - **Intelligent Inline Comments**: Comments on the same line as code now stay on the line with proper tab spacing
