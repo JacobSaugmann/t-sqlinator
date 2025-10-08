@@ -1,24 +1,37 @@
-# T-SQLinator
+# T-SQLinator v0.8.0
 
-A Visual Studio Code extension that formats SQL documents.
+A Visual Studio Code extension that formats SQL documents with advanced formatting options.
 The T-SQLinator terminates messy SQL code and transforms it into beautifully formatted queries!
-And its created entierly by copilot and prompting
+
+🎉 **NEW in v0.8.0**: River Formatting - Professional SQL formatting with keyword alignment to create a visual "river" effect!
 
 ## Features
 
-- **Automatic SQL Formatting**: Format SQL documents with a single command or automatically when saving
-- **T-SQLinator Professional Style**: Professional SQL formatting with consistent indentation and alignment
-- **Context Menu Integration**: Right-click in SQL files to access formatting options
-- **Command Palette Support**: Use `Format SQL Document` command from the command palette
-- **Keyboard Shortcuts**: Default keybindings for quick formatting (`Ctrl+Shift+F` or `Alt+Shift+F`)
-- **Customizable Settings**: Configure formatting preferences through VS Code settings
-- **Single-line DROP statements**: Keeps `DROP XXX IF EXISTS` statements on one line for readability
+- **🌊 River Formatting**: New professional formatting style with keywords aligned to 7th column creating a visual "river"
+- **📐 Indent Formatting**: Clean 4-space indentation alternative to River formatting  
+- **⚡ Legacy Formatting**: Original T-SQLinator professional style preserved
+- **🔧 Automatic SQL Formatting**: Format SQL documents with a single command or automatically when saving
+- **🎯 Context Menu Integration**: Right-click in SQL files to access formatting options
+- **⌨️ Command Palette Support**: Use `Format SQL Document` command from the command palette
+- **🚀 Keyboard Shortcuts**: Default keybindings for quick formatting (`Ctrl+Shift+F` or `Alt+Shift+F`)
+- **⚙️ Customizable Settings**: Configure formatting preferences through VS Code settings
+- **📝 JOIN Preservation**: Correctly preserves INNER JOIN, LEFT OUTER JOIN, etc. without syntax errors
+- **🧪 Extensively Tested**: Comprehensive test suite ensures reliable formatting
 
 ## Configuration
 
 T-SQLinator can be customized through VS Code settings. Go to `File > Preferences > Settings` and search for "T-SQLinator" to configure:
 
 ### Available Settings
+
+- **t-sqlinator.useRiverFormatting** (`boolean`) - Default: `false`
+  - Enable River formatting with keywords aligned to 7th column
+
+- **t-sqlinator.riverColumn** (`1-20`) - Default: `7`  
+  - Column position for River formatting alignment
+
+- **t-sqlinator.useIndentFormatting** (`boolean`) - Default: `false`
+  - Enable Indent formatting with 4-space indentation
 
 - **t-sqlinator.keywordCase** (`upper` | `lower` | `preserve`) - Default: `upper`
   - Case formatting for SQL keywords (SELECT, FROM, WHERE, etc.)
@@ -46,6 +59,52 @@ T-SQLinator can be customized through VS Code settings. Go to `File > Preference
 
 - **t-sqlinator.linesBetweenQueries** (`0-5`) - Default: `2`
   - Number of blank lines between separate SQL queries
+
+## Formatting Styles
+
+### 🌊 River Formatting (NEW!)
+Creates a visual "river" by aligning keywords to the 7th column:
+```sql
+SELECT col1
+     , col2
+     , col3
+      FROM table1
+      INNER JOIN table2
+    ON table1.id = table2.id  
+      WHERE col1 > 100
+      ORDER BY col1
+```
+
+### 📐 Indent Formatting
+Clean 4-space indentation style:
+```sql
+SELECT
+    col1
+    ,col2
+    ,col3
+FROM
+    table1
+    INNER JOIN table2
+        ON table1.id = table2.id
+WHERE
+    col1 > 100
+ORDER BY
+    col1
+```
+
+### ⚡ Legacy Formatting
+Original T-SQLinator professional style:
+```sql
+SELECT
+      col1
+    , col2
+    , col3
+FROM table1
+    INNER JOIN table2
+        ON table1.id = table2.id
+WHERE col1 > 100
+ORDER BY col1
+```
 
 ## Usage
 
@@ -76,6 +135,21 @@ T-SQLinator can be customized through VS Code settings. Go to `File > Preference
 2. Run `npm install` to install dependencies
 3. Run `npm run compile` to build the extension
 4. Press `F5` to launch a new VS Code window with the extension loaded
+
+## Testing
+
+T-SQLinator v0.8.0 includes comprehensive testing with real-world SQL scripts:
+
+- **sql_formatter_test_script.sql**: Comprehensive test script with various SQL patterns
+- **BigQuery.sql**: Real-world complex SQL script for regression testing
+- **test-suite.js**: Automated test suite ensuring formatting reliability
+- **test-critical.js**: Critical tests for syntax preservation
+
+Run tests:
+```bash
+node test-critical.js    # Critical syntax preservation tests
+node test-suite.js       # Full comprehensive test suite
+```
 
 ## Requirements
 

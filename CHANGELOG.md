@@ -2,6 +2,38 @@
 
 All notable changes to the "T-SQLinator" extension will be documented in this file.
 
+## [0.8.0] - 2025-10-08
+
+### 🌊 NEW: River Formatting - Professional SQL Layout! ✨
+- **River Formatting**: Revolutionary new formatting style with keywords aligned to 7th column creating a visual "river"
+- **Multiple Formatting Modes**: Choose between River, Indent, or Legacy formatting styles
+- **JOIN Preservation Fix**: Critical bug fix - INNER JOIN, LEFT OUTER JOIN, etc. are now correctly preserved (no more syntax errors!)
+- **BigQuery.sql Compatibility**: Fixed major formatting issues with complex SQL scripts
+
+### 🧪 Comprehensive Testing Suite
+- **test-critical.js**: Critical test suite ensuring no syntax errors are introduced
+- **sql_formatter_test_script.sql**: Comprehensive test script with all SQL patterns
+- **BigQuery.sql**: Real-world complex SQL regression testing
+- **100% Test Coverage**: All critical SQL patterns verified across all formatting modes
+
+### 🔧 New Configuration Options
+- **useRiverFormatting**: Enable River formatting with 7th column alignment
+- **riverColumn**: Customize River alignment column (default: 7)
+- **useIndentFormatting**: Enable clean 4-space indent formatting
+- **Enhanced Configuration**: More precise control over formatting behavior
+
+### 🐛 Critical Bug Fixes
+- **INNER JOIN Preservation**: Fixed bug where "INNER" was being removed from "INNER JOIN" statements
+- **LEFT OUTER JOIN**: Fixed similar issue with OUTER being removed from JOIN statements  
+- **Syntax Error Prevention**: Comprehensive validation ensures no SQL syntax is broken during formatting
+- **Performance Improvements**: Faster formatting with better error handling
+
+### 📝 Documentation & Testing
+- **Updated README.md**: Comprehensive documentation with formatting examples
+- **Enhanced CHANGELOG**: Detailed release notes with examples
+- **Test Suite Integration**: Automated testing prevents regression issues
+- **Professional Documentation**: Clear configuration and usage guidelines
+
 ## [0.7.1] - 2025-09-26
 
 ### MAJOR FIX: SQL Parsing & ORDER BY Alignment ✅

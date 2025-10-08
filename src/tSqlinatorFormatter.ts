@@ -932,9 +932,8 @@ export class TSqlinatorFormatter {
                 const padding = ' '.repeat(Math.max(0, riverPos));
                 result.push(padding + 'FROM ' + part.table);
             } else if (part.type === 'JOIN') {
-                // Clean up join types - remove unnecessary INNER and OUTER
+                // Preserve original join type (INNER JOIN, LEFT JOIN, etc.)
                 let joinType = part.joinType || 'JOIN';
-                joinType = joinType.replace(/\bINNER\s+/i, '').replace(/\bOUTER\s+/i, '');
                 joinType = joinType.trim();
                 
                 // Align JOIN to river (start at riverColumn position)
@@ -969,9 +968,8 @@ export class TSqlinatorFormatter {
                 result.push('FROM');
                 result.push(indent + part.table);
             } else if (part.type === 'JOIN') {
-                // Clean up join types
+                // Preserve original join type (INNER JOIN, LEFT JOIN, etc.)
                 let joinType = part.joinType || 'JOIN';
-                joinType = joinType.replace(/\bINNER\s+/i, '').replace(/\bOUTER\s+/i, '');
                 joinType = joinType.trim();
                 
                 result.push(indent + joinType + ' ' + part.table);
