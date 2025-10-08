@@ -2,6 +2,25 @@
 
 All notable changes to the "T-SQLinator" extension will be documented in this file.
 
+# Change Log
+
+## [0.8.1] - 2025-10-08
+
+### Fixed
+- **Critical Cursor Bug**: Fixed severe cursor statement corruption where OPEN and FETCH statements were being lost and table names were being replaced incorrectly
+- **Cursor Preservation**: Enhanced cursor statement detection and parsing to preserve all cursor operations (DECLARE, OPEN, FETCH, CLOSE, DEALLOCATE)
+- **Statement Parsing**: Improved statement end detection for cursor workflows to prevent incorrect merging of cursor operations
+- **Table Name Protection**: Fixed issue where table names like #Organization were being corrupted in cursor contexts
+
+### Added
+- Comprehensive cursor keywords support (CURSOR, OPEN, FETCH, NEXT, CLOSE, DEALLOCATE)
+- Enhanced cursor test coverage to prevent future regressions
+
+### Technical Changes
+- Reordered cursor detection to occur before general DECLARE block detection
+- Enhanced isStatementEnd logic for cursor statement workflows
+- Improved formatCursorStatement method with better error handling
+
 ## [0.8.0] - 2025-10-08
 
 ### 🌊 NEW: River Formatting - Professional SQL Layout! ✨

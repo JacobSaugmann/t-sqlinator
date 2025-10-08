@@ -36,7 +36,9 @@ export class TSqlinatorFormatter {
         'IF', 'ELSE', 'WHILE', 'FOR', 'DECLARE', 'BEGIN', 'END', 'TRY', 'CATCH',
         'AND', 'OR', 'NOT', 'IN', 'EXISTS', 'BETWEEN', 'LIKE', 'IS', 'NULL',
         'PRIMARY', 'KEY', 'FOREIGN', 'REFERENCES', 'CONSTRAINT', 'UNIQUE', 'CHECK',
-        'DEFAULT', 'IDENTITY', 'AUTO_INCREMENT', 'WITH', 'CTE', 'RECURSIVE'
+        'DEFAULT', 'IDENTITY', 'AUTO_INCREMENT', 'WITH', 'CTE', 'RECURSIVE',
+        // Cursor keywords
+        'CURSOR', 'OPEN', 'FETCH', 'NEXT', 'CLOSE', 'DEALLOCATE'
     ];
 
     constructor(userConfig?: Partial<TSqlinatorConfig>) {
@@ -79,6 +81,10 @@ export class TSqlinatorFormatter {
                 } else if (block.type === 'SIMPLE_SELECT') {
                     // Format simple SELECT statements
                     const formatted = this.formatSimpleSelect(block.content);
+                    formattedBlocks.push(formatted);
+                } else if (block.type === 'CURSOR_STATEMENT') {
+                    // Cursor statements should be preserved with minimal formatting
+                    const formatted = this.formatCursorStatement(block.content);
                     formattedBlocks.push(formatted);
                 } else if (block.type === 'COMPLEX_STATEMENT') {
                     // For complex statements, just apply keyword casing and preserve structure
@@ -241,7 +247,16 @@ export class TSqlinatorFormatter {
             return 'CTE_STATEMENT';
         }
         
-        // DECLARE statements should be grouped together
+        // Cursor statements - these should be preserved as-is (check before DECLARE_BLOCK)
+        if (upperLine.includes('CURSOR FOR') || 
+            upperLine.startsWith('OPEN ') || 
+            upperLine.startsWith('FETCH ') || 
+            upperLine.startsWith('CLOSE ') || 
+            upperLine.startsWith('DEALLOCATE ')) {
+            return 'CURSOR_STATEMENT';
+        }
+        
+        // DECLARE statements should be grouped together (but not cursor declarations)
         if (upperLine.startsWith('DECLARE ')) {
             return 'DECLARE_BLOCK';
         }
@@ -290,6 +305,16 @@ export class TSqlinatorFormatter {
                 return false; // Continue the DECLARE block
             }
             
+            // Special handling for cursor declarations - don't end if current line has "CURSOR FOR" and next is SELECT
+            if (currentBlockType === 'CURSOR_STATEMENT' && line.toUpperCase().includes('CURSOR FOR') && upperNext.startsWith('SELECT ')) {
+                return false; // The SELECT is part of the cursor declaration
+            }
+            
+            // Don't end cursor statements on subsequent FROM clauses
+            if (currentBlockType === 'CURSOR_STATEMENT' && upperNext.startsWith('FROM ')) {
+                return false; // The FROM is part of the cursor declaration
+            }
+            
             if (upperNext.startsWith('SELECT ') ||
                 upperNext.startsWith('WITH ') ||
                 upperNext.startsWith('INSERT ') ||
@@ -298,7 +323,14 @@ export class TSqlinatorFormatter {
                 upperNext.startsWith('CREATE ') ||
                 upperNext.startsWith('ALTER ') ||
                 upperNext.startsWith('DROP ') ||
-                upperNext.startsWith('DECLARE ')) {
+                upperNext.startsWith('DECLARE ') ||
+                upperNext.startsWith('OPEN ') ||
+                upperNext.startsWith('FETCH ') ||
+                upperNext.startsWith('CLOSE ') ||
+                upperNext.startsWith('DEALLOCATE ') ||
+                upperNext.startsWith('WHILE ') ||
+                upperNext.startsWith('BEGIN') ||
+                upperNext.startsWith('END')) {
                 return true;
             }
             break;
@@ -1470,6 +1502,35 @@ export class TSqlinatorFormatter {
         } catch (error) {
             // If CTE formatting fails, return with basic formatting
             return this.applyBasicFormatting(sql);
+        }
+    }
+
+    private formatCursorStatement(sql: string): string {
+        // Handle cursor statements with minimal formatting to preserve syntax
+        try {
+            // For cursor statements, we want to preserve the structure completely
+            // Just apply keyword casing and clean up whitespace
+            let formatted = this.applyKeywordCasing(sql);
+            
+            // Clean up extra whitespace but preserve line structure
+            const lines = formatted.split(/\r?\n/);
+            const result: string[] = [];
+            
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed) {
+                    // Clean up multiple spaces but preserve structure
+                    const cleaned = trimmed.replace(/\s+/g, ' ');
+                    result.push(cleaned);
+                } else {
+                    result.push('');
+                }
+            }
+            
+            return result.join('\n');
+        } catch (error) {
+            // If cursor formatting fails, return original content unchanged
+            return sql;
         }
     }
 
