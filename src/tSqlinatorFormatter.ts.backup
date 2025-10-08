@@ -18,10 +18,6 @@ interface TSqlinatorConfig {
     newlineBeforeGroupBy: boolean;
     newlineBeforeOrderBy: boolean;
     linesBetweenQueries: number;
-    // River formatting options
-    useRiverFormatting: boolean;
-    riverColumn: number; // Column position for the "river" (default 7)
-    useIndentFormatting: boolean; // Alternative to river formatting
 }
 
 export class TSqlinatorFormatter {
@@ -54,10 +50,6 @@ export class TSqlinatorFormatter {
             newlineBeforeGroupBy: true,
             newlineBeforeOrderBy: true,
             linesBetweenQueries: 2,
-            // River formatting defaults
-            useRiverFormatting: true,
-            riverColumn: 7,
-            useIndentFormatting: false,
             ...userConfig
         };
     }
@@ -386,7 +378,7 @@ export class TSqlinatorFormatter {
 
         // Format HAVING clause
         if (components.having) {
-            result.push(...this.formatHavingClause(components.having));
+            result.push('HAVING ' + components.having);
         }
 
         // Format ORDER BY clause
@@ -500,82 +492,6 @@ export class TSqlinatorFormatter {
     private formatSelectClause(selectContent: string): string[] {
         const result: string[] = [];
         const columns = this.parseSelectColumns(selectContent);
-        
-        if (this.config.useRiverFormatting) {
-            return this.formatSelectWithRiver(columns);
-        } else if (this.config.useIndentFormatting) {
-            return this.formatSelectWithIndent(columns);
-        } else {
-            // Fallback to current formatting
-            return this.formatSelectLegacy(columns);
-        }
-    }
-
-    private formatSelectWithRiver(columns: string[]): string[] {
-        const result: string[] = [];
-        const riverPos = this.config.riverColumn - 1; // Convert to 0-based index
-        
-        // Check if we have modifiers like DISTINCT or TOP
-        const firstColumn = columns[0]?.trim() || '';
-        const hasModifiers = /^(DISTINCT|TOP\s+\d+)/i.test(firstColumn);
-        
-        if (hasModifiers) {
-            // Handle SELECT DISTINCT or SELECT TOP - put first column on its own line
-            result.push('SELECT ' + firstColumn.match(/^(DISTINCT|TOP\s+\d+)/i)?.[0]);
-            const remainingFirstColumn = firstColumn.replace(/^(DISTINCT|TOP\s+\d+)\s*/i, '');
-            
-            if (remainingFirstColumn) {
-                const padding = ' '.repeat(Math.max(0, riverPos - remainingFirstColumn.length));
-                result.push(padding + remainingFirstColumn);
-            }
-            
-            // Process remaining columns
-            for (let i = 1; i < columns.length; i++) {
-                const column = this.formatComplexColumn(columns[i].trim());
-                const padding = ' '.repeat(Math.max(0, riverPos - 1)); // -1 for comma
-                result.push(padding + ', ' + column);
-            }
-        } else {
-            // Standard SELECT - first column on same line as SELECT
-            if (columns.length > 0) {
-                const firstCol = this.formatComplexColumn(columns[0].trim());
-                result.push('SELECT ' + firstCol);
-                
-                // Subsequent columns aligned to river with comma prefix
-                for (let i = 1; i < columns.length; i++) {
-                    const column = this.formatComplexColumn(columns[i].trim());
-                    const padding = ' '.repeat(Math.max(0, riverPos - 1)); // -1 for comma
-                    result.push(padding + ', ' + column);
-                }
-            } else {
-                result.push('SELECT');
-            }
-        }
-        
-        return result;
-    }
-
-    private formatSelectWithIndent(columns: string[]): string[] {
-        const result: string[] = [];
-        const indent = ' '.repeat(this.config.indentSize);
-        
-        result.push('SELECT');
-        
-        for (let i = 0; i < columns.length; i++) {
-            const column = this.formatComplexColumn(columns[i].trim());
-            
-            if (i === 0) {
-                result.push(indent + column);
-            } else {
-                result.push(indent + ',' + column);
-            }
-        }
-        
-        return result;
-    }
-
-    private formatSelectLegacy(columns: string[]): string[] {
-        const result: string[] = [];
         
         result.push('SELECT');
         
@@ -780,57 +696,6 @@ export class TSqlinatorFormatter {
         const overContent = windowColumn.substring(overStart, overEnd).trim();
         const remainder = windowColumn.substring(overEnd + 1).trim();
         
-        if (this.config.useRiverFormatting) {
-            return this.formatWindowFunctionWithRiver(functionPart, overContent, remainder);
-        } else {
-            return this.formatWindowFunctionLegacy(functionPart, overContent, remainder);
-        }
-    }
-
-    private formatWindowFunctionWithRiver(functionPart: string, overContent: string, remainder: string): string {
-        const riverPos = this.config.riverColumn - 1;
-        
-        // Format the OVER clause content
-        const formattedOverContent = this.formatOverClauseContent(overContent);
-        
-        // River-aligned window function formatting
-        let result = functionPart + '\n';
-        
-        // OVER aligned to river
-        const overPadding = ' '.repeat(Math.max(0, riverPos - 4)); // 4 = length of "OVER"
-        result += overPadding + 'OVER (';
-        
-        if (formattedOverContent) {
-            // Parse OVER content and align to river
-            const overLines = formattedOverContent.split('\n');
-            for (const line of overLines) {
-                const trimmedLine = line.trim();
-                if (trimmedLine.startsWith('PARTITION BY')) {
-                    const partitionPadding = ' '.repeat(Math.max(0, riverPos - 12)); // 12 = length of "PARTITION BY"
-                    result += '\n' + partitionPadding + trimmedLine;
-                } else if (trimmedLine.startsWith('ORDER BY')) {
-                    const orderPadding = ' '.repeat(Math.max(0, riverPos - 8)); // 8 = length of "ORDER BY"
-                    result += '\n' + orderPadding + trimmedLine;
-                } else if (trimmedLine) {
-                    const generalPadding = ' '.repeat(Math.max(0, riverPos));
-                    result += '\n' + generalPadding + trimmedLine;
-                }
-            }
-            const closePadding = ' '.repeat(Math.max(0, riverPos - 1));
-            result += '\n' + closePadding + ')';
-        } else {
-            result += ')';
-        }
-        
-        // Add any remainder (like AS alias)
-        if (remainder) {
-            result += ' ' + remainder;
-        }
-        
-        return result;
-    }
-
-    private formatWindowFunctionLegacy(functionPart: string, overContent: string, remainder: string): string {
         // Format the OVER clause content
         const formattedOverContent = this.formatOverClauseContent(overContent);
         
@@ -912,89 +777,6 @@ export class TSqlinatorFormatter {
         
         // Parse FROM and all JOINs
         const fromParts = this.parseFromWithJoins(fromContent);
-        
-        if (this.config.useRiverFormatting) {
-            return this.formatFromWithRiver(fromParts);
-        } else if (this.config.useIndentFormatting) {
-            return this.formatFromWithIndent(fromParts);
-        } else {
-            return this.formatFromLegacy(fromParts);
-        }
-    }
-
-    private formatFromWithRiver(fromParts: Array<{type: string, joinType?: string, table: string, conditions?: string[]}>): string[] {
-        const result: string[] = [];
-        const riverPos = this.config.riverColumn - 1;
-        
-        for (const part of fromParts) {
-            if (part.type === 'FROM') {
-                // FROM aligned to river (start at riverColumn position)
-                const padding = ' '.repeat(Math.max(0, riverPos));
-                result.push(padding + 'FROM ' + part.table);
-            } else if (part.type === 'JOIN') {
-                // Clean up join types - remove unnecessary INNER and OUTER
-                let joinType = part.joinType || 'JOIN';
-                joinType = joinType.replace(/\bINNER\s+/i, '').replace(/\bOUTER\s+/i, '');
-                joinType = joinType.trim();
-                
-                // Align JOIN to river (start at riverColumn position)
-                const padding = ' '.repeat(Math.max(0, riverPos));
-                result.push(padding + joinType + ' ' + part.table);
-                
-                // Format ON conditions aligned to river
-                if (part.conditions && part.conditions.length > 0) {
-                    for (let i = 0; i < part.conditions.length; i++) {
-                        const condition = part.conditions[i];
-                        if (i === 0) {
-                            const onPadding = ' '.repeat(Math.max(0, riverPos - 2)); // 2 = length of "ON"
-                            result.push(onPadding + 'ON ' + condition);
-                        } else {
-                            const andPadding = ' '.repeat(Math.max(0, riverPos - 3)); // 3 = length of "AND"
-                            result.push(andPadding + condition);
-                        }
-                    }
-                }
-            }
-        }
-        
-        return result;
-    }
-
-    private formatFromWithIndent(fromParts: Array<{type: string, joinType?: string, table: string, conditions?: string[]}>): string[] {
-        const result: string[] = [];
-        const indent = ' '.repeat(this.config.indentSize);
-        
-        for (const part of fromParts) {
-            if (part.type === 'FROM') {
-                result.push('FROM');
-                result.push(indent + part.table);
-            } else if (part.type === 'JOIN') {
-                // Clean up join types
-                let joinType = part.joinType || 'JOIN';
-                joinType = joinType.replace(/\bINNER\s+/i, '').replace(/\bOUTER\s+/i, '');
-                joinType = joinType.trim();
-                
-                result.push(indent + joinType + ' ' + part.table);
-                
-                // Format ON conditions
-                if (part.conditions && part.conditions.length > 0) {
-                    for (let i = 0; i < part.conditions.length; i++) {
-                        const condition = part.conditions[i];
-                        if (i === 0) {
-                            result.push(indent + indent + 'ON ' + condition);
-                        } else {
-                            result.push(indent + indent + condition);
-                        }
-                    }
-                }
-            }
-        }
-        
-        return result;
-    }
-
-    private formatFromLegacy(fromParts: Array<{type: string, joinType?: string, table: string, conditions?: string[]}>): string[] {
-        const result: string[] = [];
         
         for (const part of fromParts) {
             if (part.type === 'FROM') {
@@ -1081,67 +863,6 @@ export class TSqlinatorFormatter {
     }
 
     private formatWhereClause(whereContent: string): string[] {
-        if (this.config.useRiverFormatting) {
-            return this.formatWhereWithRiver(whereContent);
-        } else if (this.config.useIndentFormatting) {
-            return this.formatWhereWithIndent(whereContent);
-        } else {
-            return this.formatWhereLegacy(whereContent);
-        }
-    }
-
-    private formatWhereWithRiver(whereContent: string): string[] {
-        const result: string[] = [];
-        const riverPos = this.config.riverColumn - 1;
-        
-        // Split WHERE conditions by AND/OR
-        const conditions = this.parseWhereConditions(whereContent);
-        
-        // WHERE aligned to river (start at riverColumn position)
-        const wherePadding = ' '.repeat(Math.max(0, riverPos));
-        
-        if (conditions.length > 0) {
-            result.push(wherePadding + 'WHERE ' + conditions[0]);
-            
-            // Additional conditions aligned to river with AND/OR
-            for (let i = 1; i < conditions.length; i++) {
-                const condition = conditions[i];
-                const operator = condition.startsWith('OR ') ? 'OR' : 'AND';
-                const conditionText = condition.replace(/^(AND|OR)\s+/i, '');
-                
-                const operatorPadding = ' '.repeat(Math.max(0, riverPos - operator.length));
-                result.push(operatorPadding + operator + ' ' + conditionText);
-            }
-        } else {
-            result.push(wherePadding + 'WHERE ' + whereContent);
-        }
-        
-        return result;
-    }
-
-    private formatWhereWithIndent(whereContent: string): string[] {
-        const result: string[] = [];
-        const indent = ' '.repeat(this.config.indentSize);
-        
-        const conditions = this.parseWhereConditions(whereContent);
-        
-        result.push('WHERE');
-        
-        if (conditions.length > 0) {
-            result.push(indent + conditions[0]);
-            
-            for (let i = 1; i < conditions.length; i++) {
-                const condition = conditions[i];
-                result.push(indent + condition);
-            }
-        } else {
-            result.push(indent + whereContent);
-        }
-        
-        return result;
-    }
-
-    private formatWhereLegacy(whereContent: string): string[] {
         const result: string[] = [];
         
         // Use the enhanced WHERE AND formatting
@@ -1158,90 +879,7 @@ export class TSqlinatorFormatter {
         return result;
     }
 
-    private parseWhereConditions(whereContent: string): string[] {
-        // Simple parsing of WHERE conditions split by AND/OR
-        const conditions: string[] = [];
-        let currentCondition = '';
-        let parenLevel = 0;
-        let inQuotes = false;
-        let quoteChar = '';
-        
-        const tokens = whereContent.split(/(\s+(?:AND|OR)\s+)/i);
-        
-        for (let i = 0; i < tokens.length; i++) {
-            const token = tokens[i];
-            if (i === 0) {
-                conditions.push(token.trim());
-            } else if (/^\s*(AND|OR)\s+$/i.test(token)) {
-                // This is an AND/OR operator
-                const operator = token.trim();
-                if (i + 1 < tokens.length) {
-                    conditions.push(operator + ' ' + tokens[i + 1].trim());
-                    i++; // Skip the next token since we already processed it
-                }
-            }
-        }
-        
-        return conditions.filter(c => c.trim());
-    }
-
     private formatOrderByClause(orderByContent: string): string[] {
-        if (this.config.useRiverFormatting) {
-            return this.formatOrderByWithRiver(orderByContent);
-        } else if (this.config.useIndentFormatting) {
-            return this.formatOrderByWithIndent(orderByContent);
-        } else {
-            return this.formatOrderByLegacy(orderByContent);
-        }
-    }
-
-    private formatOrderByWithRiver(orderByContent: string): string[] {
-        const result: string[] = [];
-        const riverPos = this.config.riverColumn - 1;
-        
-        // Split ORDER BY columns by comma
-        const columns = orderByContent.split(',').map(c => c.trim().replace(/\s+ASC$/i, '')); // Remove unnecessary ASC
-        
-        // ORDER BY aligned to river (start at riverColumn position)
-        const orderByPadding = ' '.repeat(Math.max(0, riverPos));
-        
-        if (columns.length <= 3 && columns.every(c => c.length <= 20)) {
-            // Short columns on same line
-            result.push(orderByPadding + 'ORDER BY ' + columns.join(', '));
-        } else {
-            // Multi-line with river alignment
-            if (columns.length > 0) {
-                result.push(orderByPadding + 'ORDER BY ' + columns[0]);
-                
-                for (let i = 1; i < columns.length; i++) {
-                    const column = columns[i];
-                    const commaPadding = ' '.repeat(Math.max(0, riverPos - 1)); // -1 for comma
-                    result.push(commaPadding + ', ' + column);
-                }
-            } else {
-                result.push(orderByPadding + 'ORDER BY ' + orderByContent);
-            }
-        }
-        
-        return result;
-    }
-
-    private formatOrderByWithIndent(orderByContent: string): string[] {
-        const result: string[] = [];
-        const indent = ' '.repeat(this.config.indentSize);
-        
-        const columns = orderByContent.split(',').map(c => c.trim().replace(/\s+ASC$/i, ''));
-        
-        result.push('ORDER BY');
-        
-        for (const column of columns) {
-            result.push(indent + column);
-        }
-        
-        return result;
-    }
-
-    private formatOrderByLegacy(orderByContent: string): string[] {
         const result: string[] = [];
         
         // Split ORDER BY columns by comma
@@ -1330,53 +968,6 @@ export class TSqlinatorFormatter {
     }
 
     private formatGroupByClause(groupByContent: string): string[] {
-        if (this.config.useRiverFormatting) {
-            return this.formatGroupByWithRiver(groupByContent);
-        } else if (this.config.useIndentFormatting) {
-            return this.formatGroupByWithIndent(groupByContent);
-        } else {
-            return this.formatGroupByLegacy(groupByContent);
-        }
-    }
-
-    private formatGroupByWithRiver(groupByContent: string): string[] {
-        const result: string[] = [];
-        const riverPos = this.config.riverColumn - 1;
-        const columns = groupByContent.split(',').map(col => col.trim()).filter(col => col);
-        
-        // GROUP BY aligned to river (start at riverColumn position)
-        const groupByPadding = ' '.repeat(Math.max(0, riverPos));
-        
-        if (columns.length > 0) {
-            result.push(groupByPadding + 'GROUP BY ' + columns[0]);
-            
-            for (let i = 1; i < columns.length; i++) {
-                const column = columns[i];
-                const commaPadding = ' '.repeat(Math.max(0, riverPos - 1)); // -1 for comma
-                result.push(commaPadding + ', ' + column);
-            }
-        } else {
-            result.push(groupByPadding + 'GROUP BY ' + groupByContent);
-        }
-        
-        return result;
-    }
-
-    private formatGroupByWithIndent(groupByContent: string): string[] {
-        const result: string[] = [];
-        const indent = ' '.repeat(this.config.indentSize);
-        const columns = groupByContent.split(',').map(col => col.trim()).filter(col => col);
-        
-        result.push('GROUP BY');
-        
-        for (const column of columns) {
-            result.push(indent + column);
-        }
-        
-        return result;
-    }
-
-    private formatGroupByLegacy(groupByContent: string): string[] {
         const result: string[] = [];
         const columns = groupByContent.split(',').map(col => col.trim()).filter(col => col);
         
@@ -1393,71 +984,6 @@ export class TSqlinatorFormatter {
         }
         
         return result;
-    }
-
-    private formatHavingClause(havingContent: string): string[] {
-        if (this.config.useRiverFormatting) {
-            return this.formatHavingWithRiver(havingContent);
-        } else if (this.config.useIndentFormatting) {
-            return this.formatHavingWithIndent(havingContent);
-        } else {
-            return this.formatHavingLegacy(havingContent);
-        }
-    }
-
-    private formatHavingWithRiver(havingContent: string): string[] {
-        const result: string[] = [];
-        const riverPos = this.config.riverColumn - 1;
-        
-        // Parse HAVING conditions similar to WHERE
-        const conditions = this.parseWhereConditions(havingContent);
-        
-        // HAVING aligned to river (start at riverColumn position)
-        const havingPadding = ' '.repeat(Math.max(0, riverPos));
-        
-        if (conditions.length > 0) {
-            result.push(havingPadding + 'HAVING ' + conditions[0]);
-            
-            // Additional conditions aligned to river with AND/OR
-            for (let i = 1; i < conditions.length; i++) {
-                const condition = conditions[i];
-                const operator = condition.startsWith('OR ') ? 'OR' : 'AND';
-                const conditionText = condition.replace(/^(AND|OR)\s+/i, '');
-                
-                const operatorPadding = ' '.repeat(Math.max(0, riverPos - operator.length));
-                result.push(operatorPadding + operator + ' ' + conditionText);
-            }
-        } else {
-            result.push(havingPadding + 'HAVING ' + havingContent);
-        }
-        
-        return result;
-    }
-
-    private formatHavingWithIndent(havingContent: string): string[] {
-        const result: string[] = [];
-        const indent = ' '.repeat(this.config.indentSize);
-        
-        const conditions = this.parseWhereConditions(havingContent);
-        
-        result.push('HAVING');
-        
-        if (conditions.length > 0) {
-            result.push(indent + conditions[0]);
-            
-            for (let i = 1; i < conditions.length; i++) {
-                const condition = conditions[i];
-                result.push(indent + condition);
-            }
-        } else {
-            result.push(indent + havingContent);
-        }
-        
-        return result;
-    }
-
-    private formatHavingLegacy(havingContent: string): string[] {
-        return ['HAVING ' + havingContent];
     }
 
     private formatCteStatement(sql: string): string {
