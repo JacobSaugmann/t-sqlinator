@@ -42,7 +42,14 @@ export function activate(context: vscode.ExtensionContext) {
                 alignCommas: config.get<boolean>('alignCommas', true),
                 alignAliases: config.get<boolean>('alignAliases', true),
                 newlineAfterSelect: config.get<boolean>('newlineAfterSelect', true),
-                linesBetweenQueries: config.get<number>('linesBetweenQueries', 2)
+                newlineBeforeFrom: config.get<boolean>('newlineBeforeFrom', true),
+                newlineBeforeWhere: config.get<boolean>('newlineBeforeWhere', true),
+                newlineBeforeGroupBy: config.get<boolean>('newlineBeforeGroupBy', true),
+                newlineBeforeOrderBy: config.get<boolean>('newlineBeforeOrderBy', true),
+                linesBetweenQueries: config.get<number>('linesBetweenQueries', 2),
+                useRiverFormatting: config.get<boolean>('useRiverFormatting', true),
+                riverColumn: config.get<number>('riverColumn', 7),
+                useIndentFormatting: config.get<boolean>('useIndentFormatting', false)
             };
 
             // Create formatter and format the text
@@ -87,7 +94,14 @@ class SqlFormattingProvider implements vscode.DocumentFormattingEditProvider {
                 alignCommas: config.get<boolean>('alignCommas', true),
                 alignAliases: config.get<boolean>('alignAliases', true),
                 newlineAfterSelect: config.get<boolean>('newlineAfterSelect', true),
-                linesBetweenQueries: config.get<number>('linesBetweenQueries', 2)
+                newlineBeforeFrom: config.get<boolean>('newlineBeforeFrom', true),
+                newlineBeforeWhere: config.get<boolean>('newlineBeforeWhere', true),
+                newlineBeforeGroupBy: config.get<boolean>('newlineBeforeGroupBy', true),
+                newlineBeforeOrderBy: config.get<boolean>('newlineBeforeOrderBy', true),
+                linesBetweenQueries: config.get<number>('linesBetweenQueries', 2),
+                useRiverFormatting: config.get<boolean>('useRiverFormatting', true),
+                riverColumn: config.get<number>('riverColumn', 7),
+                useIndentFormatting: config.get<boolean>('useIndentFormatting', false)
             };
 
             // Create formatter with user settings

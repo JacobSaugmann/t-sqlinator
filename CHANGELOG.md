@@ -2,6 +2,23 @@
 
 All notable changes to the "T-SQLinator" extension will be documented in this file.
 
+## [0.8.4] - 2025-10-09
+
+### Added
+- **Complete VS Code Configuration**: All T-SQLinator settings now available in VS Code settings UI
+- **River Formatting Settings**: Added `useRiverFormatting`, `riverColumn`, and `useIndentFormatting` options
+- **Keyword Newline Settings**: Added control for newlines before FROM, WHERE, GROUP BY, ORDER BY keywords
+- **Enhanced Settings UI**: All configuration options now properly exposed in VS Code settings interface
+
+### Fixed
+- **Missing Configuration Options**: River formatting and other advanced options were not accessible via VS Code settings
+- **Settings Synchronization**: Extension now properly reads all configuration values from VS Code settings
+
+### Technical Details
+- Added 8 new configuration settings to package.json contributions
+- Updated extension.ts to read all available configuration options
+- Maintains full backward compatibility with existing configurations
+
 ## [0.8.3] - 2025-10-09
 
 ### Fixed
