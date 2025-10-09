@@ -2,7 +2,7 @@
   "name": "t-sqlinator",
   "displayName": "T-SQLinator",
   "description": "Professional T-SQL Formatter with River formatting - Clean, readable SQL code with advanced formatting options",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "publisher": "t-sqlinator",
   "author": {
     "name": "T-SQLinator Team"

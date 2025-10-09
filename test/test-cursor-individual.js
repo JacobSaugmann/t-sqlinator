@@ -1,4 +1,4 @@
-const { TSqlinatorFormatter } = require('./out/tSqlinatorFormatter.js');
+const { TSqlinatorFormatter } = require('../out/tSqlinatorFormatter.js');
 
 // Test minimal cursor statements individually
 const cursorStatements = [

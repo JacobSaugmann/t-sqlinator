@@ -85,7 +85,7 @@ AND PR.Price > 50;
 
 -- GROUP BY og HAVING
 SELECT 
-    P.City AS By,
+    P.City AS city,
     COUNT(O.OrderID) AS AntalOrdre,
     SUM(O.Amount) AS TotalOmsætning
 FROM Person AS P

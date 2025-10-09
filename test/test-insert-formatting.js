@@ -1,4 +1,4 @@
-const { TSqlinatorFormatter } = require('./out/tSqlinatorFormatter');
+const { TSqlinatorFormatter } = require('../out/tSqlinatorFormatter');
 
 // Test INSERT statement formatting
 const testInserts = `

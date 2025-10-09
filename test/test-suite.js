@@ -4,7 +4,7 @@
  * Includes regression tests for BigQuery.sql JOIN preservation
  */
 
-const { TSqlinatorFormatter } = require('./out/tSqlinatorFormatter');
+const { TSqlinatorFormatter } = require('../out/tSqlinatorFormatter');
 const fs = require('fs');
 
 // Test configurations

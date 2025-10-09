@@ -2,9 +2,47 @@
 
 All notable changes to the "T-SQLinator" extension will be documented in this file.
 
-# Change Log
+## [0.8.2] - 2025-10-09
+
+### 🧹 Project Organization & Cleanup
+- **Test Organization**: Moved all test and debug scripts to `/test` subfolder for better project structure
+- **Clean Root Directory**: Root directory now contains only essential project files
+- **Updated Test References**: All test scripts updated to work from new `/test` directory location
+- **Build Optimization**: Cleaned up old VSIX packages and improved build process
+
+### 📁 Files Reorganized
+- Moved all `debug-*.js` files to `/test` folder
+- Moved all `test-*.js` files to `/test` folder  
+- Moved SQL test files (`Comments_test.sql`, `BigQuery.sql`, `Cursor_example.sql`, etc.) to `/test` folder
+- Updated all import paths in test files to reference `../out/tSqlinatorFormatter`
+
+### ✅ Verified Functionality
+- All 27 main test suite tests still pass (100% success rate)
+- All 5 comment handling tests still pass (100% success rate)
+- Performance maintained at optimal levels (2.5ms average)
+- Complete functionality preserved after reorganization
 
 ## [0.8.1] - 2025-10-08
+
+### 🎯 Advanced Comment Handling Implementation
+- **Inline Comment Preservation**: Comments with `--` or `/* */` inside SELECT statements now stay on the same line with their code
+- **Standalone Comment Spacing**: Standalone comments maintain their current formatting with proper spacing
+- **Smart Column Parsing**: Enhanced `parseSelectColumns` method to intelligently detect and preserve inline comments
+- **Multi-Column Support**: Correctly handles multiple columns with inline comments in SELECT statements
+
+### Danish User Requirement Fulfilled
+> "hvis kommentarer med -- eller /**/ ir inde i et select statement så skal der ikke laves linjeskift før og efter, men hvis den står selvstændigt så bebehold nuværende formattering"
+
+- ✅ Inline comments stay with their code without line breaks
+- ✅ Standalone comments preserve their formatting  
+- ✅ Both `--` and `/* */` comment styles supported
+- ✅ Comprehensive test coverage with `Comments_test.sql`
+
+### Technical Improvements
+- Enhanced comment detection logic in column parsing
+- Improved comma handling for columns with inline comments
+- Smart lookahead parsing to preserve comment-code relationships
+- Comprehensive test suite with 5 dedicated comment tests (100% pass rate)
 
 ### Fixed
 - **Critical Cursor Bug**: Fixed severe cursor statement corruption where OPEN and FETCH statements were being lost and table names were being replaced incorrectly

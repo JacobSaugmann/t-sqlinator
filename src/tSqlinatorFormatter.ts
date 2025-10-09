@@ -614,7 +614,7 @@ export class TSqlinatorFormatter {
         for (let i = 0; i < columns.length; i++) {
             const column = columns[i].trim();
             
-            // Format the column using formatComplexColumn
+            // Format the column using formatComplexColumn (this handles inline comments)
             const formattedColumn = this.formatComplexColumn(column);
             
             if (this.config.commaPosition === 'before') {
@@ -646,21 +646,51 @@ export class TSqlinatorFormatter {
         for (let i = 0; i < selectContent.length; i++) {
             const char = selectContent[i];
 
+            // Handle quotes
             if (!inQuotes && (char === "'" || char === '"')) {
                 inQuotes = true;
                 quoteChar = char;
             } else if (inQuotes && char === quoteChar) {
                 inQuotes = false;
                 quoteChar = '';
-            } else if (!inQuotes && char === '(') {
+            }
+            // Handle parentheses
+            else if (!inQuotes && char === '(') {
                 parenLevel++;
             } else if (!inQuotes && char === ')') {
                 parenLevel--;
-            } else if (!inQuotes && char === ',' && parenLevel === 0) {
-                if (currentColumn.trim()) {
-                    columns.push(currentColumn.trim());
+            }
+            // Handle column separation
+            else if (!inQuotes && char === ',' && parenLevel === 0) {
+                // Look ahead to see if there's a comment immediately after this comma ON THE SAME LINE
+                let lookahead = i + 1;
+                let afterComma = '';
+                
+                // Collect only whitespace and comment until newline
+                while (lookahead < selectContent.length && selectContent[lookahead] !== '\n') {
+                    afterComma += selectContent[lookahead];
+                    lookahead++;
                 }
-                currentColumn = '';
+                
+                // If what follows the comma is only whitespace and a comment, include it
+                const afterCommaTrimmed = afterComma.trim();
+                if (afterCommaTrimmed.startsWith('--') || afterCommaTrimmed.startsWith('/*')) {
+                    // Include the comment with the current column
+                    currentColumn += ',' + afterComma;
+                    // Add this complete column to the list
+                    if (currentColumn.trim()) {
+                        columns.push(currentColumn.trim());
+                    }
+                    currentColumn = '';
+                    // Skip past the comment to the newline
+                    i = lookahead - 1;
+                } else {
+                    // Normal column split - no comment after comma
+                    if (currentColumn.trim()) {
+                        columns.push(currentColumn.trim());
+                    }
+                    currentColumn = '';
+                }
                 continue;
             }
 
@@ -673,6 +703,8 @@ export class TSqlinatorFormatter {
 
         return columns;
     }
+
+
     
     private parseColumnPart(content: string): string[] {
         const columns: string[] = [];
@@ -680,9 +712,31 @@ export class TSqlinatorFormatter {
         let parenLevel = 0;
         let inQuotes = false;
         let quoteChar = '';
+        let inLineComment = false;
 
         for (let i = 0; i < content.length; i++) {
             const char = content[i];
+            const nextChar = i < content.length - 1 ? content[i + 1] : '';
+
+            // Handle line comments
+            if (!inQuotes && !inLineComment && char === '-' && nextChar === '-') {
+                inLineComment = true;
+                currentColumn += char;
+                continue;
+            }
+
+            // End of line comment
+            if (inLineComment && char === '\n') {
+                inLineComment = false;
+                currentColumn += char;
+                continue;
+            }
+
+            // If we're in a line comment, just add the character
+            if (inLineComment) {
+                currentColumn += char;
+                continue;
+            }
 
             if (!inQuotes && (char === "'" || char === '"')) {
                 inQuotes = true;
@@ -696,9 +750,8 @@ export class TSqlinatorFormatter {
                 parenLevel--;
             } else if (!inQuotes && char === ',' && parenLevel === 0) {
                 if (currentColumn.trim()) {
-                    // Format the column before adding it
-                    const formattedColumn = this.formatComplexColumn(currentColumn.trim());
-                    columns.push(formattedColumn);
+                    // Keep original column for SELECT - formatting will happen in formatSelectLegacy
+                    columns.push(currentColumn.trim());
                 }
                 currentColumn = '';
                 continue;
@@ -708,9 +761,8 @@ export class TSqlinatorFormatter {
         }
 
         if (currentColumn.trim()) {
-            // Format the last column
-            const formattedColumn = this.formatComplexColumn(currentColumn.trim());
-            columns.push(formattedColumn);
+            // Keep original last column
+            columns.push(currentColumn.trim());
         }
 
         return columns;
@@ -747,7 +799,7 @@ export class TSqlinatorFormatter {
             formattedColumn = this.formatWindowFunction(formattedColumn);
         }
         
-        // Re-attach inline comment with proper spacing
+        // Re-attach inline comment with proper spacing if it exists
         if (inlineComment.comment) {
             formattedColumn += '\t' + inlineComment.comment;
         }

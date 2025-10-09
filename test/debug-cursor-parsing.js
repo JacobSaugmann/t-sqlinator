@@ -1,4 +1,4 @@
-const { TSqlinatorFormatter } = require('./out/tSqlinatorFormatter.js');
+const { TSqlinatorFormatter } = require('../out/tSqlinatorFormatter.js');
 
 // Debugging the parsing process
 const cursorSQL = `-- Declare a cursor for a Table or a View 'TableOrViewName' in schema 'dbo'
