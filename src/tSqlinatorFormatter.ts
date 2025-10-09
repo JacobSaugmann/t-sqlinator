@@ -181,20 +181,28 @@ export class TSqlinatorFormatter {
                 continue;
             }
 
-            // Handle line comments - group consecutive comments together
+            // Handle line comments - distinguish between standalone and statement comments
             if (trimmedLine.startsWith('--')) {
-                // If we have an active block, save it first
-                if (currentBlock.trim() && blockType !== 'LINE_COMMENT') {
-                    blocks.push({type: blockType, content: currentBlock.trim()});
-                    currentBlock = '';
-                }
+                // Check if this comment is part of an ongoing SQL statement
+                const isPartOfStatement = this.isCommentPartOfStatement(currentBlock, blockType, i, lines);
                 
-                // Start or continue a line comment block
-                if (blockType !== 'LINE_COMMENT') {
-                    blockType = 'LINE_COMMENT';
-                    currentBlock = line;
+                if (isPartOfStatement) {
+                    // This comment is part of the current SQL statement - keep it in the same block
+                    currentBlock += (currentBlock ? '\n' : '') + line;
                 } else {
-                    currentBlock += '\n' + line;
+                    // This is a standalone comment - save current block first if exists
+                    if (currentBlock.trim() && blockType !== 'LINE_COMMENT') {
+                        blocks.push({type: blockType, content: currentBlock.trim()});
+                        currentBlock = '';
+                    }
+                    
+                    // Start or continue a line comment block
+                    if (blockType !== 'LINE_COMMENT') {
+                        blockType = 'LINE_COMMENT';
+                        currentBlock = line;
+                    } else {
+                        currentBlock += '\n' + line;
+                    }
                 }
                 continue;
             } else {
@@ -1771,5 +1779,60 @@ export class TSqlinatorFormatter {
         }
         
         return { code, comment };
+    }
+
+    private isCommentPartOfStatement(currentBlock: string, blockType: string, currentLineIndex: number, lines: string[]): boolean {
+        // If we're already in a SQL statement block, the comment is likely part of it
+        if (blockType === 'SIMPLE_SELECT' || blockType === 'COMPLEX_STATEMENT' || blockType === 'CTE_STATEMENT') {
+            return true;
+        }
+        
+        // If current block has SELECT, INSERT, UPDATE, DELETE, or other SQL keywords, comment is part of statement
+        if (currentBlock.trim()) {
+            const blockUpper = currentBlock.toUpperCase();
+            if (blockUpper.includes('SELECT') || blockUpper.includes('INSERT') || 
+                blockUpper.includes('UPDATE') || blockUpper.includes('DELETE') ||
+                blockUpper.includes('CREATE') || blockUpper.includes('ALTER') ||
+                blockUpper.includes('WITH') || blockUpper.includes('DECLARE')) {
+                return true;
+            }
+        }
+        
+        // Look ahead to see if the next non-empty, non-comment line continues the SQL statement
+        for (let i = currentLineIndex + 1; i < lines.length; i++) {
+            const nextLine = lines[i].trim();
+            
+            // Skip empty lines and other comments
+            if (!nextLine || nextLine.startsWith('--') || nextLine.startsWith('/*')) {
+                continue;
+            }
+            
+            // Check if the next line looks like a continuation of a SQL statement
+            const nextLineUpper = nextLine.toUpperCase();
+            if (nextLineUpper.startsWith('CASE') || nextLineUpper.startsWith('WHEN') ||
+                nextLineUpper.startsWith('FROM') || nextLineUpper.startsWith('WHERE') ||
+                nextLineUpper.startsWith('JOIN') || nextLineUpper.startsWith('INNER') ||
+                nextLineUpper.startsWith('LEFT') || nextLineUpper.startsWith('RIGHT') ||
+                nextLineUpper.startsWith('GROUP') || nextLineUpper.startsWith('ORDER') ||
+                nextLineUpper.startsWith('HAVING') || nextLineUpper.startsWith('UNION') ||
+                nextLineUpper.startsWith('END') || nextLineUpper.includes('THEN') ||
+                nextLineUpper.includes('ELSE') || nextLine.includes(',')) {
+                return true;
+            }
+            
+            // If we find a clear start of a new statement, this comment is standalone
+            if (nextLineUpper.startsWith('SELECT') || nextLineUpper.startsWith('INSERT') ||
+                nextLineUpper.startsWith('UPDATE') || nextLineUpper.startsWith('DELETE') ||
+                nextLineUpper.startsWith('CREATE') || nextLineUpper.startsWith('ALTER') ||
+                nextLineUpper.startsWith('DROP') || nextLineUpper.startsWith('WITH')) {
+                return false;
+            }
+            
+            // If we encounter any other code, assume it's part of the current statement
+            return true;
+        }
+        
+        // If we can't determine, assume it's standalone to be safe
+        return false;
     }
 }

@@ -2,6 +2,19 @@
 
 All notable changes to the "T-SQLinator" extension will be documented in this file.
 
+## [0.8.3] - 2025-10-09
+
+### Fixed
+- **Enhanced Comment Handling**: Fixed inline statement comments to remain inline without extra spacing
+- **Danish Comment Requirement**: Comments that are part of SQL statements (like `-- Gruppér efter type baseret på trackingtype og tilstedeværelse af bruger`) now stay inline
+- **Smart Comment Detection**: Improved logic to distinguish between standalone comments and statement comments
+- **Statement Context Awareness**: Comments within SELECT, CASE, WHERE, and other SQL constructs are now properly preserved inline
+
+### Technical Details
+- Added `isCommentPartOfStatement()` method to detect when comments are part of ongoing SQL statements
+- Enhanced `parseIntoBlocks()` logic to handle statement comments differently from standalone comments
+- Maintains backward compatibility with existing comment formatting for truly standalone comments
+
 ## [0.8.2] - 2025-10-09
 
 ### 🧹 Project Organization & Cleanup
