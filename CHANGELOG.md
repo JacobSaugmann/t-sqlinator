@@ -2,6 +2,20 @@
 
 All notable changes to the "T-SQLinator" extension will be documented in this file.
 
+## [0.8.5] - 2026-05-05
+
+### Added
+- **`newlineBeforeHaving` setting**: Control whether HAVING appears on its own line (default: `true`). Completes the set of per-clause newline controls alongside `newlineBeforeFrom`, `newlineBeforeWhere`, `newlineBeforeGroupBy`, and `newlineBeforeOrderBy`.
+
+### Improved
+- **Formatting performance**: Clause-detection regex patterns in the SELECT parser are now pre-compiled as class fields instead of being recreated on every character iteration. Quote-counting patterns are similarly pre-compiled. Reduces object allocations in the hot path for large SQL statements.
+- **Code quality**: Extracted a reusable `appendClause()` helper that eliminates repeated clause-appending logic in `formatSelectStatement`. Introduced a named `SelectComponents` interface replacing an anonymous inline type.
+- **Type safety**: `TSqlinatorConfig` is now exported so `extension.ts` can import and use it directly. `readUserConfig()` has an explicit return type. Error messages use `error instanceof Error` guards instead of bare template-string coercion.
+- **Legacy formatting**: Column indentation in legacy mode is now computed from `riverColumn` rather than hardcoded 6-space strings, so it respects a changed `riverColumn` value.
+
+### Removed
+- Dead code: `formatInlineComment()` private method was never called and has been deleted.
+
 ## [0.8.4] - 2025-10-09
 
 ### Added

@@ -1,7 +1,30 @@
 import * as vscode from 'vscode';
-import { TSqlinatorFormatter } from './tSqlinatorFormatter';
+import { TSqlinatorFormatter, TSqlinatorConfig } from './tSqlinatorFormatter';
 
-export function activate(context: vscode.ExtensionContext) {
+function readUserConfig(): TSqlinatorConfig {
+    const config = vscode.workspace.getConfiguration('t-sqlinator');
+    return {
+        keywordCase: config.get<'upper' | 'lower' | 'preserve'>('keywordCase', 'upper'),
+        functionCase: config.get<'upper' | 'lower' | 'preserve'>('functionCase', 'upper'),
+        dataTypeCase: config.get<'upper' | 'lower' | 'preserve'>('dataTypeCase', 'upper'),
+        indentSize: config.get<number>('indentSize', 4),
+        commaPosition: config.get<'before' | 'after'>('commaPosition', 'before'),
+        alignCommas: config.get<boolean>('alignCommas', true),
+        alignAliases: config.get<boolean>('alignAliases', true),
+        newlineAfterSelect: config.get<boolean>('newlineAfterSelect', true),
+        newlineBeforeFrom: config.get<boolean>('newlineBeforeFrom', true),
+        newlineBeforeWhere: config.get<boolean>('newlineBeforeWhere', true),
+        newlineBeforeGroupBy: config.get<boolean>('newlineBeforeGroupBy', true),
+        newlineBeforeHaving: config.get<boolean>('newlineBeforeHaving', true),
+        newlineBeforeOrderBy: config.get<boolean>('newlineBeforeOrderBy', true),
+        linesBetweenQueries: config.get<number>('linesBetweenQueries', 2),
+        useRiverFormatting: config.get<boolean>('useRiverFormatting', true),
+        riverColumn: config.get<number>('riverColumn', 7),
+        useIndentFormatting: config.get<boolean>('useIndentFormatting', false)
+    };
+}
+
+export function activate(context: vscode.ExtensionContext): void {
     // Register a simple test command
     const testCommand = vscode.commands.registerCommand('t-sqlinator.test', () => {
         vscode.window.showInformationMessage('T-SQLinator test command works!');
@@ -28,31 +51,8 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         try {
-            // Get the text from the document
             const text = editor.document.getText();
-
-            // Get user configuration settings
-            const config = vscode.workspace.getConfiguration('t-sqlinator');
-            const userConfig = {
-                keywordCase: config.get<'upper' | 'lower' | 'preserve'>('keywordCase', 'upper'),
-                functionCase: config.get<'upper' | 'lower' | 'preserve'>('functionCase', 'upper'),
-                dataTypeCase: config.get<'upper' | 'lower' | 'preserve'>('dataTypeCase', 'upper'),
-                indentSize: config.get<number>('indentSize', 4),
-                commaPosition: config.get<'before' | 'after'>('commaPosition', 'before'),
-                alignCommas: config.get<boolean>('alignCommas', true),
-                alignAliases: config.get<boolean>('alignAliases', true),
-                newlineAfterSelect: config.get<boolean>('newlineAfterSelect', true),
-                newlineBeforeFrom: config.get<boolean>('newlineBeforeFrom', true),
-                newlineBeforeWhere: config.get<boolean>('newlineBeforeWhere', true),
-                newlineBeforeGroupBy: config.get<boolean>('newlineBeforeGroupBy', true),
-                newlineBeforeOrderBy: config.get<boolean>('newlineBeforeOrderBy', true),
-                linesBetweenQueries: config.get<number>('linesBetweenQueries', 2),
-                useRiverFormatting: config.get<boolean>('useRiverFormatting', true),
-                riverColumn: config.get<number>('riverColumn', 7),
-                useIndentFormatting: config.get<boolean>('useIndentFormatting', false)
-            };
-
-            // Create formatter and format the text
+            const userConfig = readUserConfig();
             const sqlFormatter = new TSqlinatorFormatter(userConfig);
             const formattedText = sqlFormatter.format(text);
 
@@ -66,7 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
                 editBuilder.replace(fullRange, formattedText);
             });
         } catch (error) {
-            vscode.window.showErrorMessage(`SQL Formatting failed: ${error}`);
+            vscode.window.showErrorMessage(`SQL Formatting failed: ${error instanceof Error ? error.message : String(error)}`);
         }
     });
 
@@ -83,28 +83,7 @@ class SqlFormattingProvider implements vscode.DocumentFormattingEditProvider {
         const text = document.getText();
         
         try {
-            // Get user configuration settings
-            const config = vscode.workspace.getConfiguration('t-sqlinator');
-            const userConfig = {
-                keywordCase: config.get<'upper' | 'lower' | 'preserve'>('keywordCase', 'upper'),
-                functionCase: config.get<'upper' | 'lower' | 'preserve'>('functionCase', 'upper'),
-                dataTypeCase: config.get<'upper' | 'lower' | 'preserve'>('dataTypeCase', 'upper'),
-                indentSize: config.get<number>('indentSize', 4),
-                commaPosition: config.get<'before' | 'after'>('commaPosition', 'before'),
-                alignCommas: config.get<boolean>('alignCommas', true),
-                alignAliases: config.get<boolean>('alignAliases', true),
-                newlineAfterSelect: config.get<boolean>('newlineAfterSelect', true),
-                newlineBeforeFrom: config.get<boolean>('newlineBeforeFrom', true),
-                newlineBeforeWhere: config.get<boolean>('newlineBeforeWhere', true),
-                newlineBeforeGroupBy: config.get<boolean>('newlineBeforeGroupBy', true),
-                newlineBeforeOrderBy: config.get<boolean>('newlineBeforeOrderBy', true),
-                linesBetweenQueries: config.get<number>('linesBetweenQueries', 2),
-                useRiverFormatting: config.get<boolean>('useRiverFormatting', true),
-                riverColumn: config.get<number>('riverColumn', 7),
-                useIndentFormatting: config.get<boolean>('useIndentFormatting', false)
-            };
-
-            // Create formatter with user settings
+            const userConfig = readUserConfig();
             const sqlFormatter = new TSqlinatorFormatter(userConfig);
             const formattedText = sqlFormatter.format(text);
 
@@ -116,7 +95,7 @@ class SqlFormattingProvider implements vscode.DocumentFormattingEditProvider {
 
             return [vscode.TextEdit.replace(fullRange, formattedText)];
         } catch (error) {
-            vscode.window.showErrorMessage(`SQL Formatting failed: ${error}`);
+            vscode.window.showErrorMessage(`SQL Formatting failed: ${error instanceof Error ? error.message : String(error)}`);
             return [];
         }
     }

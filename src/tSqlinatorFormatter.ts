@@ -4,7 +4,16 @@
  * Designed to handle complex scripts without destroying code
  */
 
-interface TSqlinatorConfig {
+interface SelectComponents {
+    select?: string;
+    from?: string;
+    where?: string;
+    groupBy?: string;
+    having?: string;
+    orderBy?: string;
+}
+
+export interface TSqlinatorConfig {
     keywordCase: 'upper' | 'lower' | 'preserve';
     functionCase: 'upper' | 'lower' | 'preserve';
     dataTypeCase: 'upper' | 'lower' | 'preserve';
@@ -16,6 +25,7 @@ interface TSqlinatorConfig {
     newlineBeforeFrom: boolean;
     newlineBeforeWhere: boolean;
     newlineBeforeGroupBy: boolean;
+    newlineBeforeHaving: boolean;
     newlineBeforeOrderBy: boolean;
     linesBetweenQueries: number;
     // River formatting options
@@ -33,13 +43,28 @@ export class TSqlinatorFormatter {
         'JOIN', 'INNER', 'LEFT', 'RIGHT', 'FULL', 'OUTER', 'CROSS', 'ON', 'AS',
         'GROUP', 'BY', 'ORDER', 'HAVING', 'UNION', 'ALL', 'DISTINCT', 'TOP',
         'INTO', 'VALUES', 'SET', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END',
-        'IF', 'ELSE', 'WHILE', 'FOR', 'DECLARE', 'BEGIN', 'END', 'TRY', 'CATCH',
+        'IF', 'WHILE', 'FOR', 'DECLARE', 'BEGIN', 'TRY', 'CATCH',
         'AND', 'OR', 'NOT', 'IN', 'EXISTS', 'BETWEEN', 'LIKE', 'IS', 'NULL',
         'PRIMARY', 'KEY', 'FOREIGN', 'REFERENCES', 'CONSTRAINT', 'UNIQUE', 'CHECK',
-        'DEFAULT', 'IDENTITY', 'AUTO_INCREMENT', 'WITH', 'CTE', 'RECURSIVE',
+        'DEFAULT', 'IDENTITY', 'AUTO_INCREMENT', 'WITH', 'RECURSIVE',
         // Cursor keywords
         'CURSOR', 'OPEN', 'FETCH', 'NEXT', 'CLOSE', 'DEALLOCATE'
     ];
+
+    private readonly keywordRegexes = this.keywords.map(kw => ({
+        regex: new RegExp(`\\b${kw}\\b`, 'gi'),
+        upper: kw,
+        lower: kw.toLowerCase()
+    }));
+
+    private readonly reSelectClause  = /^SELECT\b/i;
+    private readonly reFromClause    = /^FROM\b/i;
+    private readonly reWhereClause   = /^WHERE\b/i;
+    private readonly reGroupByClause = /^GROUP\s+BY/i;
+    private readonly reHavingClause  = /^HAVING\b/i;
+    private readonly reOrderByClause = /^ORDER\s+BY/i;
+    private readonly reSingleQuote   = /'/g;
+    private readonly reDoubleQuote   = /"/g;
 
     constructor(userConfig?: Partial<TSqlinatorConfig>) {
         this.config = {
@@ -54,6 +79,7 @@ export class TSqlinatorFormatter {
             newlineBeforeFrom: true,
             newlineBeforeWhere: true,
             newlineBeforeGroupBy: true,
+            newlineBeforeHaving: true,
             newlineBeforeOrderBy: true,
             linesBetweenQueries: 2,
             // River formatting defaults
@@ -143,8 +169,6 @@ export class TSqlinatorFormatter {
         let currentBlock = '';
         let blockType = 'UNKNOWN';
         let inBlockComment = false;
-        let inStringLiteral = false;
-        let stringDelimiter = '';
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -161,7 +185,7 @@ export class TSqlinatorFormatter {
                 currentBlock = line;
                 
                 // Check if comment ends on same line
-                if (trimmedLine.endsWith('*/') && trimmedLine.length > 4) {
+                if (trimmedLine.indexOf('*/') > trimmedLine.indexOf('/*')) {
                     inBlockComment = false;
                     blocks.push({type: 'COMMENT', content: currentBlock});
                     currentBlock = '';
@@ -230,7 +254,7 @@ export class TSqlinatorFormatter {
             currentBlock += (currentBlock ? '\n' : '') + line;
 
             // Check for statement terminators
-            if (this.isStatementEnd(line, i, lines, blockType)) {
+            if (this.isStatementEnd(line, i, lines, blockType, currentBlock)) {
                 if (currentBlock.trim()) {
                     blocks.push({type: blockType, content: currentBlock.trim()});
                 }
@@ -275,7 +299,7 @@ export class TSqlinatorFormatter {
         
         // Complex statements that should be preserved
         if (upperLine.startsWith('DROP TABLE') ||
-            upperLine.startsWith('DROP TABLE') ||
+            upperLine.startsWith('DROP IF EXISTS') ||
             upperLine.includes(' INTO #') ||
             upperLine.includes(' INTO @') ||
             upperLine.includes('CREATE ') ||
@@ -289,7 +313,14 @@ export class TSqlinatorFormatter {
         return 'STATEMENT';
     }
 
-    private isStatementEnd(line: string, lineIndex: number, allLines: string[], currentBlockType: string): boolean {
+    private countUnmatchedCases(sql: string): number {
+        const upper = sql.toUpperCase();
+        const caseCount = (upper.match(/\bCASE\b/g) || []).length;
+        const endCount = (upper.match(/\bEND\b/g) || []).length;
+        return Math.max(0, caseCount - endCount);
+    }
+
+    private isStatementEnd(line: string, lineIndex: number, allLines: string[], currentBlockType: string, currentBlock: string = ''): boolean {
         const trimmed = line.trim();
         
         // Explicit statement terminators
@@ -337,10 +368,14 @@ export class TSqlinatorFormatter {
                 upperNext.startsWith('CLOSE ') ||
                 upperNext.startsWith('DEALLOCATE ') ||
                 upperNext.startsWith('WHILE ') ||
-                upperNext.startsWith('BEGIN') ||
-                upperNext.startsWith('END')) {
+                upperNext.startsWith('BEGIN')) {
                 return true;
             }
+
+            if (upperNext.startsWith('END') && this.countUnmatchedCases(currentBlock) === 0) {
+                return true;
+            }
+
             break;
         }
         
@@ -389,63 +424,52 @@ export class TSqlinatorFormatter {
 
     private applyKeywordCasing(sql: string): string {
         if (this.config.keywordCase === 'preserve') return sql;
-        
+
         let result = sql;
-        for (const keyword of this.keywords) {
-            const regex = new RegExp(`\\b${keyword}\\b`, 'gi');
-            const replacement = this.config.keywordCase === 'upper' ? keyword : keyword.toLowerCase();
+        for (const {regex, upper, lower} of this.keywordRegexes) {
+            const replacement = this.config.keywordCase === 'upper' ? upper : lower;
             result = result.replace(regex, replacement);
         }
         return result;
     }
 
+    private appendClause(result: string[], lines: string[], inline: boolean): void {
+        if (inline && result.length > 0 && lines.length > 0) {
+            result[result.length - 1] += ' ' + lines[0].trimStart();
+            result.push(...lines.slice(1));
+        } else {
+            result.push(...lines);
+        }
+    }
+
     private formatSelectStatement(sql: string): string {
-        // Parse and format simple SELECT statements
         const components = this.parseSelectComponents(sql);
         const result: string[] = [];
 
-        // Format SELECT clause
         if (components.select) {
             result.push(...this.formatSelectClause(components.select));
         }
-
-        // Format FROM clause with JOINs
         if (components.from) {
-            result.push(...this.formatFromClause(components.from));
+            this.appendClause(result, this.formatFromClause(components.from), !this.config.newlineBeforeFrom);
         }
-
-        // Format WHERE clause
         if (components.where) {
-            result.push(...this.formatWhereClause(components.where));
+            this.appendClause(result, this.formatWhereClause(components.where), !this.config.newlineBeforeWhere);
         }
-
-        // Format GROUP BY clause
         if (components.groupBy) {
-            result.push(...this.formatGroupByClause(components.groupBy));
+            this.appendClause(result, this.formatGroupByClause(components.groupBy), !this.config.newlineBeforeGroupBy);
         }
-
-        // Format HAVING clause
         if (components.having) {
-            result.push(...this.formatHavingClause(components.having));
+            this.appendClause(result, this.formatHavingClause(components.having), !this.config.newlineBeforeHaving);
         }
-
-        // Format ORDER BY clause
         if (components.orderBy) {
-            result.push(...this.formatOrderByClause(components.orderBy));
+            this.appendClause(result, this.formatOrderByClause(components.orderBy), !this.config.newlineBeforeOrderBy);
         }
 
         return result.join('\n');
     }
 
-    private parseSelectComponents(sql: string): {
-        select?: string,
-        from?: string,
-        where?: string,
-        groupBy?: string,
-        having?: string,
-        orderBy?: string
-    } {
-        const components: any = {};
+    private parseSelectComponents(sql: string): SelectComponents {
+        const components: SelectComponents = {};
         
         // We need to carefully track parentheses throughout the entire document
         // to avoid matching ORDER BY inside window functions
@@ -469,23 +493,23 @@ export class TSqlinatorFormatter {
                 const remaining = sql.substring(i);
                 
                 let match = null;
-                if (remaining.match(/^SELECT\b/i)) {
+                if (this.reSelectClause.test(remaining)) {
                     match = { keyword: 'SELECT', length: 6 };
-                } else if (remaining.match(/^FROM\b/i)) {
+                } else if (this.reFromClause.test(remaining)) {
                     match = { keyword: 'FROM', length: 4 };
-                } else if (remaining.match(/^WHERE\b/i)) {
+                } else if (this.reWhereClause.test(remaining)) {
                     match = { keyword: 'WHERE', length: 5 };
-                } else if (remaining.match(/^GROUP\s+BY\b/i)) {
-                    const groupByMatch = remaining.match(/^GROUP\s+BY/i);
-                    if (groupByMatch) {
+                } else {
+                    const groupByMatch = this.reGroupByClause.exec(remaining);
+                    if (groupByMatch && groupByMatch.index === 0) {
                         match = { keyword: 'GROUP_BY', length: groupByMatch[0].length };
-                    }
-                } else if (remaining.match(/^HAVING\b/i)) {
-                    match = { keyword: 'HAVING', length: 6 };
-                } else if (remaining.match(/^ORDER\s+BY\b/i)) {
-                    const orderByMatch = remaining.match(/^ORDER\s+BY/i);
-                    if (orderByMatch) {
-                        match = { keyword: 'ORDER_BY', length: orderByMatch[0].length };
+                    } else if (this.reHavingClause.test(remaining)) {
+                        match = { keyword: 'HAVING', length: 6 };
+                    } else {
+                        const orderByMatch = this.reOrderByClause.exec(remaining);
+                        if (orderByMatch && orderByMatch.index === 0) {
+                            match = { keyword: 'ORDER_BY', length: orderByMatch[0].length };
+                        }
                     }
                 }
                 
@@ -538,60 +562,84 @@ export class TSqlinatorFormatter {
     }
 
     private formatSelectClause(selectContent: string): string[] {
-        const result: string[] = [];
         const columns = this.parseSelectColumns(selectContent);
-        
+
+        if (!this.config.newlineAfterSelect) {
+            return ['SELECT ' + columns.map(c => this.formatComplexColumn(c.trim())).join(', ')];
+        }
+
         if (this.config.useRiverFormatting) {
             return this.formatSelectWithRiver(columns);
         } else if (this.config.useIndentFormatting) {
             return this.formatSelectWithIndent(columns);
         } else {
-            // Fallback to current formatting
             return this.formatSelectLegacy(columns);
         }
     }
 
+    private alignColumnAliases(columns: string[]): string[] {
+        const parts = columns.map(col => {
+            const asMatch = col.match(/^(.*?)\s+AS\s+(\S+.*)$/i);
+            if (asMatch) {
+                return { expr: asMatch[1].trimEnd(), alias: 'AS ' + asMatch[2] };
+            }
+            return { expr: col, alias: '' };
+        });
+
+        const aliasedParts = parts.filter(p => p.alias);
+        if (aliasedParts.length < 2) {
+            return columns;
+        }
+
+        const maxLen = Math.max(...aliasedParts.map(p => p.expr.length));
+        return parts.map(p => {
+            if (!p.alias) return p.expr;
+            const pad = ' '.repeat(Math.max(1, maxLen - p.expr.length + 1));
+            return p.expr + pad + p.alias;
+        });
+    }
+
     private formatSelectWithRiver(columns: string[]): string[] {
         const result: string[] = [];
-        const riverPos = this.config.riverColumn - 1; // Convert to 0-based index
-        
-        // Check if we have modifiers like DISTINCT or TOP
+        const riverPos = this.config.riverColumn - 1;
+
         const firstColumn = columns[0]?.trim() || '';
         const hasModifiers = /^(DISTINCT|TOP\s+\d+)/i.test(firstColumn);
-        
+
+        let processedColumns = columns.map(c => this.formatComplexColumn(c.trim()));
+        if (this.config.alignAliases) {
+            processedColumns = this.alignColumnAliases(processedColumns);
+        }
+
+        const riverComma = (col: string): string => {
+            if (this.config.alignCommas) {
+                const padding = ' '.repeat(Math.max(0, riverPos - 1));
+                return padding + ', ' + col;
+            }
+            return '    , ' + col;
+        };
+
         if (hasModifiers) {
-            // Handle SELECT DISTINCT or SELECT TOP - put first column on its own line
             result.push('SELECT ' + firstColumn.match(/^(DISTINCT|TOP\s+\d+)/i)?.[0]);
             const remainingFirstColumn = firstColumn.replace(/^(DISTINCT|TOP\s+\d+)\s*/i, '');
-            
             if (remainingFirstColumn) {
                 const padding = ' '.repeat(Math.max(0, riverPos - remainingFirstColumn.length));
                 result.push(padding + remainingFirstColumn);
             }
-            
-            // Process remaining columns
-            for (let i = 1; i < columns.length; i++) {
-                const column = this.formatComplexColumn(columns[i].trim());
-                const padding = ' '.repeat(Math.max(0, riverPos - 1)); // -1 for comma
-                result.push(padding + ', ' + column);
+            for (let i = 1; i < processedColumns.length; i++) {
+                result.push(riverComma(processedColumns[i]));
             }
         } else {
-            // Standard SELECT - first column on same line as SELECT
-            if (columns.length > 0) {
-                const firstCol = this.formatComplexColumn(columns[0].trim());
-                result.push('SELECT ' + firstCol);
-                
-                // Subsequent columns aligned to river with comma prefix
-                for (let i = 1; i < columns.length; i++) {
-                    const column = this.formatComplexColumn(columns[i].trim());
-                    const padding = ' '.repeat(Math.max(0, riverPos - 1)); // -1 for comma
-                    result.push(padding + ', ' + column);
+            if (processedColumns.length > 0) {
+                result.push('SELECT ' + processedColumns[0]);
+                for (let i = 1; i < processedColumns.length; i++) {
+                    result.push(riverComma(processedColumns[i]));
                 }
             } else {
                 result.push('SELECT');
             }
         }
-        
+
         return result;
     }
 
@@ -616,22 +664,16 @@ export class TSqlinatorFormatter {
 
     private formatSelectLegacy(columns: string[]): string[] {
         const result: string[] = [];
-        
+        const colIndent   = ' '.repeat(this.config.riverColumn - 1);
+        const commaIndent = ' '.repeat(this.config.riverColumn - 3) + ', ';
+
         result.push('SELECT');
-        
+
         for (let i = 0; i < columns.length; i++) {
-            const column = columns[i].trim();
-            
-            // Format the column using formatComplexColumn (this handles inline comments)
-            const formattedColumn = this.formatComplexColumn(column);
-            
+            const formattedColumn = this.formatComplexColumn(columns[i].trim());
+
             if (this.config.commaPosition === 'before') {
-                if (i === 0) {
-                    // First column aligned with comma position  
-                    result.push('      ' + formattedColumn);
-                } else {
-                    result.push('    , ' + formattedColumn);
-                }
+                result.push((i === 0 ? colIndent : commaIndent) + formattedColumn);
             } else {
                 if (i === columns.length - 1) {
                     result.push('    ' + formattedColumn);
@@ -640,7 +682,7 @@ export class TSqlinatorFormatter {
                 }
             }
         }
-        
+
         return result;
     }
 
@@ -712,77 +754,6 @@ export class TSqlinatorFormatter {
         return columns;
     }
 
-
-    
-    private parseColumnPart(content: string): string[] {
-        const columns: string[] = [];
-        let currentColumn = '';
-        let parenLevel = 0;
-        let inQuotes = false;
-        let quoteChar = '';
-        let inLineComment = false;
-
-        for (let i = 0; i < content.length; i++) {
-            const char = content[i];
-            const nextChar = i < content.length - 1 ? content[i + 1] : '';
-
-            // Handle line comments
-            if (!inQuotes && !inLineComment && char === '-' && nextChar === '-') {
-                inLineComment = true;
-                currentColumn += char;
-                continue;
-            }
-
-            // End of line comment
-            if (inLineComment && char === '\n') {
-                inLineComment = false;
-                currentColumn += char;
-                continue;
-            }
-
-            // If we're in a line comment, just add the character
-            if (inLineComment) {
-                currentColumn += char;
-                continue;
-            }
-
-            if (!inQuotes && (char === "'" || char === '"')) {
-                inQuotes = true;
-                quoteChar = char;
-            } else if (inQuotes && char === quoteChar) {
-                inQuotes = false;
-                quoteChar = '';
-            } else if (!inQuotes && char === '(') {
-                parenLevel++;
-            } else if (!inQuotes && char === ')') {
-                parenLevel--;
-            } else if (!inQuotes && char === ',' && parenLevel === 0) {
-                if (currentColumn.trim()) {
-                    // Keep original column for SELECT - formatting will happen in formatSelectLegacy
-                    columns.push(currentColumn.trim());
-                }
-                currentColumn = '';
-                continue;
-            }
-
-            currentColumn += char;
-        }
-
-        if (currentColumn.trim()) {
-            // Keep original last column
-            columns.push(currentColumn.trim());
-        }
-
-        return columns;
-    }
-    
-    private hasCodeBeforeComment(line: string): boolean {
-        const commentIndex = line.indexOf('--');
-        if (commentIndex === -1) return false;
-        
-        const beforeComment = line.substring(0, commentIndex).trim();
-        return beforeComment.length > 0;
-    }
 
     private formatComplexColumn(column: string): string {
         // Extract inline comment first
@@ -1249,30 +1220,54 @@ export class TSqlinatorFormatter {
     }
 
     private parseWhereConditions(whereContent: string): string[] {
-        // Simple parsing of WHERE conditions split by AND/OR
         const conditions: string[] = [];
         let currentCondition = '';
         let parenLevel = 0;
         let inQuotes = false;
         let quoteChar = '';
-        
-        const tokens = whereContent.split(/(\s+(?:AND|OR)\s+)/i);
-        
-        for (let i = 0; i < tokens.length; i++) {
-            const token = tokens[i];
-            if (i === 0) {
-                conditions.push(token.trim());
-            } else if (/^\s*(AND|OR)\s+$/i.test(token)) {
-                // This is an AND/OR operator
-                const operator = token.trim();
-                if (i + 1 < tokens.length) {
-                    conditions.push(operator + ' ' + tokens[i + 1].trim());
-                    i++; // Skip the next token since we already processed it
+        let i = 0;
+
+        while (i < whereContent.length) {
+            const char = whereContent[i];
+
+            if (!inQuotes && (char === "'" || char === '"')) {
+                inQuotes = true;
+                quoteChar = char;
+            } else if (inQuotes && char === quoteChar) {
+                inQuotes = false;
+                quoteChar = '';
+            }
+
+            if (!inQuotes && char === '(') {
+                parenLevel++;
+            } else if (!inQuotes && char === ')') {
+                parenLevel--;
+            }
+
+            if (!inQuotes && parenLevel === 0) {
+                const remaining = whereContent.substring(i);
+                if (remaining.toUpperCase().startsWith('AND ')) {
+                    if (currentCondition.trim()) conditions.push(currentCondition.trim());
+                    currentCondition = 'AND ';
+                    i += 3;
+                    continue;
+                } else if (remaining.toUpperCase().startsWith('OR ')) {
+                    if (currentCondition.trim()) conditions.push(currentCondition.trim());
+                    currentCondition = 'OR ';
+                    i += 2;
+                    continue;
                 }
             }
+
+            currentCondition += char;
+            i++;
         }
-        
-        return conditions.filter(c => c.trim());
+
+        if (currentCondition.trim()) {
+            conditions.push(currentCondition.trim());
+        }
+
+        return conditions;
     }
 
     private formatOrderByClause(orderByContent: string): string[] {
@@ -1289,8 +1284,7 @@ export class TSqlinatorFormatter {
         const result: string[] = [];
         const riverPos = this.config.riverColumn - 1;
         
-        // Split ORDER BY columns by comma
-        const columns = orderByContent.split(',').map(c => c.trim().replace(/\s+ASC$/i, '')); // Remove unnecessary ASC
+        const columns = orderByContent.split(',').map(c => c.trim());
         
         // ORDER BY aligned to river (start at riverColumn position)
         const orderByPadding = ' '.repeat(Math.max(0, riverPos));
@@ -1320,7 +1314,7 @@ export class TSqlinatorFormatter {
         const result: string[] = [];
         const indent = ' '.repeat(this.config.indentSize);
         
-        const columns = orderByContent.split(',').map(c => c.trim().replace(/\s+ASC$/i, ''));
+        const columns = orderByContent.split(',').map(c => c.trim());
         
         result.push('ORDER BY');
         
@@ -1551,47 +1545,27 @@ export class TSqlinatorFormatter {
     }
 
     private formatCteStatement(sql: string): string {
-        // Handle CTE (Common Table Expression) formatting
-        try {
-            let formatted = this.applyKeywordCasing(sql);
-            
-            // Format the CTE structure
-            formatted = this.formatCteStructure(formatted);
-            
-            return formatted;
-        } catch (error) {
-            // If CTE formatting fails, return with basic formatting
-            return this.applyBasicFormatting(sql);
-        }
+        let formatted = this.applyKeywordCasing(sql);
+        formatted = this.formatCteStructure(formatted);
+        return formatted;
     }
 
     private formatCursorStatement(sql: string): string {
-        // Handle cursor statements with minimal formatting to preserve syntax
-        try {
-            // For cursor statements, we want to preserve the structure completely
-            // Just apply keyword casing and clean up whitespace
-            let formatted = this.applyKeywordCasing(sql);
-            
-            // Clean up extra whitespace but preserve line structure
-            const lines = formatted.split(/\r?\n/);
-            const result: string[] = [];
-            
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (trimmed) {
-                    // Clean up multiple spaces but preserve structure
-                    const cleaned = trimmed.replace(/\s+/g, ' ');
-                    result.push(cleaned);
-                } else {
-                    result.push('');
-                }
+        let formatted = this.applyKeywordCasing(sql);
+
+        const lines = formatted.split(/\r?\n/);
+        const result: string[] = [];
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed) {
+                result.push(trimmed.replace(/\s+/g, ' '));
+            } else {
+                result.push('');
             }
-            
-            return result.join('\n');
-        } catch (error) {
-            // If cursor formatting fails, return original content unchanged
-            return sql;
         }
+
+        return result.join('\n');
     }
 
     private formatCteStructure(sql: string): string {
@@ -1651,27 +1625,6 @@ export class TSqlinatorFormatter {
         return formattedLines.join('\n');
     }
 
-    private formatComments(sql: string): string {
-        const lines = sql.split(/\r?\n/);
-        const formattedLines: string[] = [];
-        
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            const trimmedLine = line.trim();
-            
-            // Check for inline comments (-- or /* */)
-            if (this.hasInlineComment(line)) {
-                // Format inline comments with proper spacing
-                formattedLines.push(this.formatInlineComment(line));
-            } else {
-                // Regular line - no comment formatting needed
-                formattedLines.push(line);
-            }
-        }
-        
-        return formattedLines.join('\n');
-    }
-
     private hasInlineComment(line: string): boolean {
         const trimmedLine = line.trim();
         
@@ -1685,45 +1638,24 @@ export class TSqlinatorFormatter {
         if (lineCommentIndex > 0) {
             // Make sure it's not inside quotes
             const beforeComment = line.substring(0, lineCommentIndex);
-            const singleQuotes = (beforeComment.match(/'/g) || []).length;
-            const doubleQuotes = (beforeComment.match(/"/g) || []).length;
-            
+            const singleQuotes = (beforeComment.match(this.reSingleQuote) || []).length;
+            const doubleQuotes = (beforeComment.match(this.reDoubleQuote) || []).length;
+
             // If we have an even number of quotes, the comment is not inside a string
             return singleQuotes % 2 === 0 && doubleQuotes % 2 === 0;
         }
-        
+
         // Check for inline /* */ comment
         const blockCommentStart = line.indexOf('/*');
         if (blockCommentStart > 0 && line.includes('*/')) {
             const beforeComment = line.substring(0, blockCommentStart);
-            const singleQuotes = (beforeComment.match(/'/g) || []).length;
-            const doubleQuotes = (beforeComment.match(/"/g) || []).length;
-            
+            const singleQuotes = (beforeComment.match(this.reSingleQuote) || []).length;
+            const doubleQuotes = (beforeComment.match(this.reDoubleQuote) || []).length;
+
             return singleQuotes % 2 === 0 && doubleQuotes % 2 === 0;
         }
         
         return false;
-    }
-
-    private formatInlineComment(line: string): string {
-        // Format -- inline comments
-        let result = line;
-        const lineCommentIndex = result.indexOf('--');
-        if (lineCommentIndex > 0) {
-            const beforeComment = result.substring(0, lineCommentIndex).trimEnd();
-            const comment = result.substring(lineCommentIndex);
-            result = beforeComment + '\t' + comment;
-        }
-        
-        // Format /* */ inline comments
-        const blockCommentStart = result.indexOf('/*');
-        if (blockCommentStart > 0 && result.includes('*/')) {
-            const beforeComment = result.substring(0, blockCommentStart).trimEnd();
-            const commentPart = result.substring(blockCommentStart);
-            result = beforeComment + '\t' + commentPart;
-        }
-        
-        return result;
     }
 
     private isStandaloneComment(content: string): boolean {
@@ -1750,9 +1682,9 @@ export class TSqlinatorFormatter {
         if (lineCommentIndex > 0) {
             // Make sure it's not inside quotes
             const beforeComment = line.substring(0, lineCommentIndex);
-            const singleQuotes = (beforeComment.match(/'/g) || []).length;
-            const doubleQuotes = (beforeComment.match(/"/g) || []).length;
-            
+            const singleQuotes = (beforeComment.match(this.reSingleQuote) || []).length;
+            const doubleQuotes = (beforeComment.match(this.reDoubleQuote) || []).length;
+
             // If we have an even number of quotes, the comment is not inside a string
             if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0) {
                 code = beforeComment.trimEnd();
@@ -1760,14 +1692,14 @@ export class TSqlinatorFormatter {
                 return { code, comment };
             }
         }
-        
+
         // Handle /* */ comments inline (single line block comments)
         const blockCommentStart = line.indexOf('/*');
         if (blockCommentStart > 0 && line.includes('*/')) {
             const blockCommentEnd = line.indexOf('*/') + 2;
             const beforeComment = line.substring(0, blockCommentStart);
-            const singleQuotes = (beforeComment.match(/'/g) || []).length;
-            const doubleQuotes = (beforeComment.match(/"/g) || []).length;
+            const singleQuotes = (beforeComment.match(this.reSingleQuote) || []).length;
+            const doubleQuotes = (beforeComment.match(this.reDoubleQuote) || []).length;
             
             if (singleQuotes % 2 === 0 && doubleQuotes % 2 === 0) {
                 const commentPart = line.substring(blockCommentStart, blockCommentEnd);

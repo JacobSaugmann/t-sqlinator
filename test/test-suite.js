@@ -271,18 +271,114 @@ function runPerformanceTest() {
     console.log(`✅ Total test time: ${endTime - startTime}ms`);
 }
 
+function runRegressionTests() {
+    console.log('\n\n📋 BUG REGRESSION TESTS');
+    console.log('========================\n');
+
+    let totalTests = 0;
+    let passedTests = 0;
+    const errors = [];
+
+    function check(name, actual, condition, description) {
+        totalTests++;
+        if (condition) {
+            passedTests++;
+            console.log(`✅ ${name}`);
+        } else {
+            console.log(`❌ ${name}: ${description}\n   Got: ${JSON.stringify(actual)}`);
+            errors.push(`${name}: ${description}`);
+        }
+    }
+
+    const f = new TSqlinatorFormatter(configs.river);
+
+    // BUG: Block comment på én linje med length <= 4 lukkes aldrig
+    // /**/  har length 4 — bør ikke sætte inBlockComment = true for resten af dokumentet
+    const shortBlockComment = `/**/ SELECT col1\n  FROM tbl`;
+    const shortBlockResult = f.format(shortBlockComment);
+    check(
+        'Block comment /**/ does not swallow rest of document',
+        shortBlockResult,
+        shortBlockResult.toUpperCase().includes('SELECT') && shortBlockResult.toUpperCase().includes('FROM'),
+        'SELECT/FROM should survive after /**/'
+    );
+
+    // BUG: parseWhereConditions splitter AND inde i subquery
+    const subqueryWhere = `SELECT col1
+  FROM tbl
+ WHERE col1 IN (SELECT x FROM t WHERE a = 1 AND b = 2)
+   AND col2 = 3`;
+    const subqueryResult = f.format(subqueryWhere);
+    const inClausePreserved = /IN\s*\(\s*SELECT/i.test(subqueryResult);
+    check(
+        'parseWhereConditions preserves AND inside subquery IN(...)',
+        subqueryResult,
+        inClausePreserved,
+        'IN (SELECT ... WHERE a AND b) should not be split on inner AND'
+    );
+
+    // BUG: isStatementEnd afslutter blok på END der tilhører CASE
+    const caseSelect = `SELECT CASE WHEN col1 = 1 THEN 'a' ELSE 'b' END AS label\n  FROM tbl`;
+    const caseResult = f.format(caseSelect);
+    check(
+        'CASE...END inside SELECT does not split block prematurely',
+        caseResult,
+        caseResult.toUpperCase().includes('FROM'),
+        'FROM should be in same formatted block as SELECT with CASE'
+    );
+
+    // BUG: ASC bør ikke fjernes fra ORDER BY
+    const ascQuery = `SELECT col1 FROM tbl ORDER BY col1 ASC, col2 DESC`;
+    const ascResult = f.format(ascQuery);
+    check(
+        'ASC preserved in ORDER BY',
+        ascResult,
+        /\bASC\b/i.test(ascResult),
+        'ASC should not be stripped from ORDER BY'
+    );
+
+    // newlineBeforeHaving: HAVING skal formateres på ny linje (default)
+    const havingQuery = `SELECT dept, COUNT(*) AS cnt FROM employees GROUP BY dept HAVING COUNT(*) > 5`;
+    const havingResult = f.format(havingQuery);
+    check(
+        'HAVING appears in formatted output',
+        havingResult,
+        /\bHAVING\b/i.test(havingResult),
+        'HAVING keyword should be present in formatted output'
+    );
+    check(
+        'HAVING on its own line by default (newlineBeforeHaving: true)',
+        havingResult,
+        /\n\s*HAVING\b/i.test(havingResult),
+        'HAVING should appear on a new line with default config'
+    );
+
+    // newlineBeforeHaving: false — HAVING inline efter GROUP BY
+    const fInline = new TSqlinatorFormatter({ ...configs.river, newlineBeforeHaving: false });
+    const havingInlineResult = fInline.format(havingQuery);
+    check(
+        'HAVING inline when newlineBeforeHaving: false',
+        havingInlineResult,
+        !/\n\s*HAVING\b/i.test(havingInlineResult),
+        'HAVING should NOT be on its own line when newlineBeforeHaving is false'
+    );
+
+    return { totalTests, passedTests, errors };
+}
+
 // Run all tests
 console.log('🚀 Starting comprehensive T-SQLinator tests...\n');
 
 const basicResults = runBasicTests();
 const bigQueryResults = runBigQueryTest();
+const regressionResults = runRegressionTests();
 
 runPerformanceTest();
 
 // Summary
-const totalTests = basicResults.totalTests + bigQueryResults.totalTests;
-const passedTests = basicResults.passedTests + bigQueryResults.passedTests;
-const allErrors = [...basicResults.errors, ...bigQueryResults.errors];
+const totalTests = basicResults.totalTests + bigQueryResults.totalTests + regressionResults.totalTests;
+const passedTests = basicResults.passedTests + bigQueryResults.passedTests + regressionResults.passedTests;
+const allErrors = [...basicResults.errors, ...bigQueryResults.errors, ...regressionResults.errors];
 
 console.log('\n\n📊 FINAL TEST SUMMARY');
 console.log('=====================');
